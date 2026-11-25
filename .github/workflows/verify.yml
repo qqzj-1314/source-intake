@@ -33,11 +33,15 @@ concurrency:
 
 jobs:
   verify:
-    name: ${{ matrix.os }} / Python 3.11 / Node 22
+    name: ${{ matrix.os }} / Python ${{ matrix.python }} / Node 22
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.11']
+        include:
+          - os: ubuntu-latest
+            python: '3.10'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:
@@ -54,7 +58,7 @@ jobs:
           cache-dependency-path: plugin/package-lock.json
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python }}
       - name: Linux Tk display dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb tk
