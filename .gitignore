@@ -1,0 +1,17 @@
+# Only distribute product sources, tests and portable documentation.
+/*
+!/.gitignore
+!/README.md
+!/install.ps1
+!/plugin/
+!/skill/
+!/tests/
+!/scripts/
+**/node_modules/
+**/.local/
+**/__pycache__/
+**/*.pyc
+**/.source-intake/
+**/panel-settings.json
+**/.env
+**/.env.*

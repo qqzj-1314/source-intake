@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>源码导入</title>
+  <style>
+    :root{
+      color-scheme:light dark;
+      --ground:#f4f4f4;--surface:#fff;--raised:#fafafa;--active:#f0f0f0;--hover:#f6f6f6;
+      --border:#e4e4e4;--rule:#eee;--control:#c9c9c9;--control-hover:#a8a8a8;
+      --text:#141414;--muted:#5f5f5f;--muted-strong:#454545;
+      --positive:#2f7a4d;--warning:#8a5a12;--negative:#b3261e;--negative-tint:#fdf3f2;
+      --focus:#1a1a1a;--primary:#1c1c1c;--primary-hover:#000;--primary-ink:#fff;
+      --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+      --radius-sheet:14px;--radius-card:8px;--radius-control:6px;
+    }
+    *{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%}
+    body{margin:0;min-height:100vh;background:var(--ground);color:var(--text);font:14px/1.55 var(--font)}
+    ::selection{background:#dcdcdc;color:#111}
+    [hidden]{display:none!important}
+    main{width:100%;max-width:980px;margin:0 auto;padding:24px}
+    .sheet{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sheet);overflow:clip}
+    .app-header{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px;padding:12px 24px;border-bottom:1px solid var(--rule)}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0}
+    .brand-mark{flex:none;width:20px;height:20px;color:var(--text)}
+    h1{margin:0;font-size:16px;line-height:1.3;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .connection{display:flex;align-items:center;gap:7px;flex:none;color:var(--muted);font-size:12px;white-space:nowrap}
+    .dot{flex:none;width:6px;height:6px;border-radius:50%;background:var(--control)}
+    .dot.online{background:var(--positive)}
+    .dot.error{background:var(--negative)}
+    .sheet-body{display:flex;flex-direction:column;gap:16px;padding:24px}
+    .app-footer{padding:14px 24px;border-top:1px solid var(--rule);color:var(--muted);font-size:12px;line-height:1.6}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-card);padding:20px;min-width:0}
+    .card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    h2{margin:0;font-size:16px;line-height:1.35;font-weight:600}
+    .hint,.field-help{margin:0;color:var(--muted);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+    .grid{display:grid;gap:14px}
+    .grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .grid.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .field{display:grid;gap:6px;min-width:0}
+    .field-label{color:var(--muted-strong);font-size:13px;font-weight:500;line-height:1.4}
+    input[type="text"],textarea,select{width:100%;min-width:0;background:var(--surface);color:var(--text);border:1px solid var(--control);border-radius:var(--radius-control);font:14px/1.4 var(--font)}
+    input[type="text"],select{height:40px;padding:0 12px}
+    select{appearance:none;-webkit-appearance:none;cursor:pointer;text-overflow:ellipsis}
+    textarea{padding:10px 12px;line-height:1.6;resize:vertical;font-family:var(--mono);font-size:13px}
+    select:hover:not(:disabled),input[type="text"]:hover:not(:disabled),textarea:hover:not(:disabled){border-color:var(--control-hover)}
+    select:focus-visible,input[type="text"]:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+    select:disabled,input[type="text"]:disabled,textarea:disabled{background:var(--raised);border-color:var(--border);color:var(--muted);cursor:not-allowed}
+    ::placeholder{color:var(--muted);opacity:1}
+    .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:14px}
+    .toolbar .hint{margin-left:auto}
+    .btn{display:inline-flex;align-items:center;justify-content:center;height:38px;padding:0 14px;border:1px solid var(--control);border-radius:var(--radius-control);background:var(--surface);color:var(--text);font:500 14px/1 var(--font);white-space:nowrap;cursor:pointer;transition:background-color .12s ease,border-color .12s ease}
+    .btn:hover:not(:disabled){background:var(--hover);border-color:var(--control-hover)}
+    .btn:active:not(:disabled){background:var(--active)}
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-ink)}
+    .btn.primary:hover:not(:disabled){background:var(--primary-hover);border-color:var(--primary-hover)}
+    .btn.danger{color:var(--negative);border-color:var(--control)}
+    .btn.danger:hover:not(:disabled){border-color:var(--negative);background:var(--negative-tint)}
+    .btn.small{height:30px;padding:0 9px;font-size:12px}
+    .btn:disabled{background:var(--raised);border-color:var(--border);color:var(--muted);cursor:not-allowed}
+    .btn.primary:disabled{background:var(--raised);color:var(--muted)}
+    :where(button,input,select,textarea):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+    .sources{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+    .source-item{border:1px solid var(--rule);border-radius:var(--radius-control);background:var(--raised);padding:12px;min-width:0}
+    .source-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+    .source-name{flex:1 1 200px;min-width:0;font:12px/1.5 var(--mono);overflow-wrap:anywhere;color:var(--muted-strong)}
+    .badge{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:4px;background:var(--active);color:var(--muted-strong);font-size:11px;font-weight:600;white-space:nowrap}
+    .badge.ready,.badge.written,.badge.completed{color:var(--positive)}
+    .badge.exists,.badge.same,.badge.skipped-same,.badge.skipped-existing{color:var(--warning)}
+    .badge.pending,.badge.invalid,.badge.conflict,.badge.failed{color:var(--negative)}
+    .source-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:10px}
+    .source-fields .field-label{font-size:12px;font-weight:400;color:var(--muted)}
+    .source-fields input{height:34px;font-size:12px}
+    .source-notes{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
+    .source-notes.error{color:var(--negative)}
+    .paste-box{margin-top:14px;padding:14px;border:1px dashed var(--control);border-radius:var(--radius-control);background:var(--raised)}
+    .paste-box textarea{min-height:170px}
+    .paste-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+    .summary{margin:14px 0 0;padding:10px 12px;background:var(--raised);border:1px solid var(--rule);border-left:2px solid var(--control);border-radius:var(--radius-control);color:var(--muted-strong);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+    .summary.error{border-left-color:var(--negative);color:var(--negative)}
+    .summary.ok{border-left-color:var(--positive)}
+    .summary.warn{border-left-color:var(--warning);color:var(--warning)}
+    .result{display:grid;gap:8px;margin-top:14px;padding:12px;background:var(--raised);border:1px solid var(--rule);border-radius:var(--radius-control);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+    .result strong{font-weight:600}
+    .mono{font-family:var(--mono);font-size:12px;user-select:text}
+    .import-row{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-top:14px}
+    .import-row .field{flex:0 1 220px}
+    .import-row .spacer{flex:1 1 0}
+    .status-line{min-height:1.6em;margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.6;overflow-wrap:anywhere}
+    .status-line.error{color:var(--negative);font-size:13px}
+    @media(max-width:760px){
+      main{padding:12px}
+      .app-header{padding:12px 16px}
+      .sheet-body{padding:16px;gap:12px}
+      .app-footer{padding:12px 16px}
+      .grid.two,.grid.three,.grid.four{grid-template-columns:1fr 1fr}
+      .source-fields{grid-template-columns:1fr}
+    }
+    @media(max-width:520px){
+      .grid.two,.grid.three,.grid.four{grid-template-columns:1fr}
+      .toolbar .hint{margin-left:0}
+      .import-row .field{flex:1 1 100%}
+      .import-row .spacer{display:none}
+      .btn{height:44px}
+      .btn.small{height:36px}
+    }
+    @media(prefers-color-scheme:dark){
+      :root{
+        color-scheme:dark;
+        --ground:#101010;--surface:#171717;--raised:#1d1d1d;--active:#262626;--hover:#222;
+        --border:#2c2c2c;--rule:#242424;--control:#4a4a4a;--control-hover:#6b6b6b;
+        --text:#f2f2f2;--muted:#b0b0b0;--muted-strong:#c9c9c9;
+        --positive:#7fbf96;--warning:#e0b268;--negative:#f0a09a;--negative-tint:#2a1a1a;
+        --focus:#ededed;--primary:#f0f0f0;--primary-hover:#fff;--primary-ink:#111;
+      }
+      ::selection{background:#3a3a3a;color:#fff}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{transition-duration:.01ms!important;scroll-behavior:auto!important}
+    }
+  </style>
+</head>
+<body><main>
+  <div class="sheet">
+    <header class="app-header">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 3.5h8l4 4v9H4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M12 3.5v4h4M7 11h6M7 14h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+        <h1>源码导入</h1>
+      </div>
+      <div class="connection" role="status" aria-live="polite"><i id="online-dot" class="dot" aria-hidden="true"></i><span id="connection-label">连接中</span></div>
+    </header>
+    <div class="sheet-body">
+      <section class="card" aria-label="项目目录">
+        <div class="card-head"><h2>项目目录</h2><p class="hint">目录不存在时会在导入时创建；预览不会创建。</p></div>
+        <div class="grid two">
+          <label class="field" for="root"><span class="field-label">项目目录</span><input id="root" type="text" spellcheck="false" placeholder="例如 D:\项目\目录" autocomplete="off"></label>
+          <div class="field"><span class="field-label">最近项目</span><select id="recent-roots"><option value="">选择已保存的目录</option></select></div>
+        </div>
+        <div class="toolbar">
+          <button id="choose-directory" class="btn" type="button">选择目录…</button>
+          <span class="hint">选择器取消不会更改任何内容。</span>
+        </div>
+        <div class="grid two" style="margin-top:14px">
+          <label class="field" for="project-name"><span class="field-label">项目名称</span><input id="project-name" type="text" placeholder="留空时使用目录名" autocomplete="off"></label>
+        </div>
+      </section>
+      <section class="card" aria-label="需求信息">
+        <div class="card-head"><h2>需求信息</h2><p class="hint">可选；BOS 数据仍由人工填写。需求编号会写入批次快照。</p></div>
+        <div class="grid two">
+          <label class="field" for="requirement-id"><span class="field-label">需求编号</span><input id="requirement-id" type="text" autocomplete="off" placeholder="例如 BOS-123"></label>
+          <label class="field" for="requirement-title"><span class="field-label">需求标题</span><input id="requirement-title" type="text" autocomplete="off"></label>
+        </div>
+        <div class="grid two" style="margin-top:14px">
+          <label class="field" for="requirement-url"><span class="field-label">需求链接</span><input id="requirement-url" type="text" autocomplete="off" placeholder="可选"></label>
+        </div>
+        <label class="field" for="requirement-description" style="margin-top:14px"><span class="field-label">需求描述</span><textarea id="requirement-description" rows="3" spellcheck="false"></textarea></label>
+      </section>
+      <section class="card" aria-label="目录规则">
+        <div class="card-head"><h2>目录规则</h2><p class="hint">hisui 使用项目默认层级；flat 平铺到根目录。四类目录均可修改。</p></div>
+        <div class="grid two">
+          <label class="field" for="profile"><span class="field-label">布局</span><select id="profile"><option value="hisui">hisui（分层）</option><option value="flat">flat（平铺）</option></select></label>
+          <label class="field" for="cls-layout"><span class="field-label">CLS 目录</span><select id="cls-layout"><option value="package">保留包层级</option><option value="fullname">文件名含完整包名</option></select></label>
+        </div>
+        <div class="grid four" style="margin-top:14px">
+          <label class="field" for="route-csp"><span class="field-label">CSP 目录</span><input id="route-csp" type="text" spellcheck="false" autocomplete="off"></label>
+          <label class="field" for="route-js"><span class="field-label">JS 目录</span><input id="route-js" type="text" spellcheck="false" autocomplete="off"></label>
+          <label class="field" for="route-css"><span class="field-label">CSS 目录</span><input id="route-css" type="text" spellcheck="false" autocomplete="off"></label>
+          <label class="field" for="route-cls"><span class="field-label">CLS 目录</span><input id="route-cls" type="text" spellcheck="false" autocomplete="off"></label>
+        </div>
+      </section>
+      <section class="card" aria-label="来源清单">
+        <div class="card-head"><h2>来源清单</h2><p class="hint">可连续追加；文件名和目标相对路径可逐项编辑。</p></div>
+        <div class="toolbar" style="margin-top:0">
+          <button id="collect-clipboard" class="btn" type="button">收集剪贴板</button>
+          <button id="choose-files" class="btn" type="button">选择文件…</button>
+          <button id="paste-code" class="btn" type="button">粘贴代码</button>
+          <span id="source-count" class="hint">0 项</span>
+        </div>
+        <div id="paste-box" class="paste-box" hidden>
+          <div class="grid two">
+            <label class="field" for="paste-filename"><span class="field-label">文件名（可选）</span><input id="paste-filename" type="text" spellcheck="false" autocomplete="off" placeholder="例如 demo.js"></label>
+          </div>
+          <label class="field" for="paste-text" style="margin-top:10px"><span class="field-label">粘贴一段源码</span><textarea id="paste-text" rows="8" spellcheck="false" placeholder="一次收集一段源码，可保留最外层代码围栏"></textarea></label>
+          <div class="paste-actions"><button id="cancel-paste" class="btn" type="button">取消</button><button id="add-paste" class="btn primary" type="button">追加到清单</button></div>
+        </div>
+        <div id="source-list" class="sources"></div>
+        <p id="source-empty" class="hint">尚未添加来源。剪贴板优先读取文件列表，其次读取文本。</p>
+      </section>
+      <section class="card" aria-label="预览与导入">
+        <div class="card-head"><h2>预览与导入</h2><p class="hint">先预览再导入；编辑任何内容后需重新预览。</p></div>
+        <div class="import-row">
+          <label class="field" for="conflict"><span class="field-label">同名文件策略</span><select id="conflict"><option value="skip">默认跳过</option><option value="backup-replace">备份后替换</option></select></label>
+          <span class="spacer"></span>
+          <button id="preview" class="btn" type="button">预览</button>
+          <button id="import" class="btn primary" type="button" disabled>导入</button>
+        </div>
+        <p id="preview-summary" class="summary" role="status">尚未预览。</p>
+        <div id="result" class="result" hidden></div>
+        <p id="status" class="status-line" role="status"></p>
+      </section>
+    </div>
+    <footer class="app-footer">源码以纯文本显示和导入，不会在面板中执行。导入数据保存在项目内的 .source-intake；面板只记住最近目录与目录规则。</footer>
+  </div>
+</main>
+<script src="/panel-bridge.js" defer></script>
+<script src="/panel.js" defer></script>
+</body>
+</html>
