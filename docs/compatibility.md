@@ -39,6 +39,8 @@ Skill 安装目录和宿主自动发现规则不同；可使用其“导入 Skil
 
 Claude 原生插件通过同一已编译入口启动；私有本地插件校验有公开目录许可/图标提示，本项目没有声明开源许可，也没有向公共市场发布。
 
+0.5.0 新增实际发行 ZIP 解压验证：不含 node_modules 的目录中，Qoder 原生模型调用返回 standalone 运行模式；Claude 原生插件加载 0.5.0 且 MCP connected，隔离会话仍无登录。三系统及 Python 3.10 CI、Skill-only CLI 流程详见 [0.5 验收记录](verification-0.5.md)。上述宿主历史记录保留，不推断未验证的 IDE 界面或模型调用。
+
 ## UI 和平台边界
 
 - Codex 的内嵌 MCP App 面板保留；通用服务器只暴露标准工具，不向其他宿主强行返回其无法展示的 Codex 面板。
