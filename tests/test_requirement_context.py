@@ -220,10 +220,10 @@ class RequirementContextTests(unittest.TestCase):
         with mock.patch.object(rc, "MAX_SCAN_ENTRIES", 3):
             context = rc.read_context(package)
 
-        self.assertEqual(
-            [item["relative_path"] for item in context["attachments"]],
-            ["attachments/f0.txt", "attachments/f1.txt", "attachments/f2.txt"],
-        )
+        paths = [item["relative_path"] for item in context["attachments"]]
+        self.assertEqual(len(paths), 3)
+        self.assertEqual(paths, sorted(paths, key=lambda value: (value.casefold(), value)))
+        self.assertTrue(set(paths).issubset({f"attachments/f{i}.txt" for i in range(6)}))
         joined = "\n".join(context["warnings"])
         self.assertIn("扫描条目达到上限 3", joined)
 

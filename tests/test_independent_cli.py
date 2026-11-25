@@ -240,6 +240,8 @@ class IntakeAcceptance(unittest.TestCase):
 
     def test_hospital_eight_file_batch(self):
         original = Path(r'D:\粤北卒中中心')
+        if not original.is_dir():
+            self.skipTest('Optional local hospital source fixture is unavailable')
         files = sorted((original/'frontend/csp').glob('*.csp')) + sorted((original/'frontend/scripts/dhcnewpro/dhcemc').glob('*.js'))
         self.assertEqual(len(files), 8)
         expected_hashes = {str(f): hashlib.sha256(f.read_bytes()).hexdigest() for f in files}

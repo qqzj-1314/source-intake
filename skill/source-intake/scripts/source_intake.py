@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
+import unicodedata
 
 TOOL_NAME = "source-intake"
 TOOL_VERSION = "1.0.0"
@@ -1110,14 +1111,16 @@ def _mark_duplicate_targets(items: list[PreparedSource]) -> None:
     groups: dict[str, list[PreparedSource]] = {}
     for item in items:
         if item.target_key and item.status in ("ready", "same", "exists"):
-            groups.setdefault(item.target_key, []).append(item)
+            # Portable destination collisions are stricter than OS-specific path containment.
+            key = unicodedata.normalize("NFC", item.target_key).casefold()
+            groups.setdefault(key, []).append(item)
     for group in groups.values():
         if len(group) < 2:
             continue
         labels = "、".join(f"#{member.index + 1}" for member in group)
         for member in group:
             member.status = "conflict"
-            member.notes.append(f"同批多个来源指向同一目标（含大小写等价）：{labels}")
+            member.notes.append(f"同批多个来源指向同一目标（含大小写等价及Unicode规范等价）：{labels}")
 
 
 def _usage_summary() -> dict[str, int]:

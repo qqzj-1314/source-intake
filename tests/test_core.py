@@ -229,6 +229,12 @@ class PasteFenceTests(IntakeTestCase):
 
 
 class PathSafetyTests(IntakeTestCase):
+    def test_unicode_equivalent_destinations_are_portable_conflicts(self):
+        request = self.request([{'text': 'var value=1;', 'filename': 'caf\u00e9.js'}, {'text': 'var value=2;', 'filename': 'cafe\u0301.js'}])
+        plan = si.build_plan(request)
+        self.assertEqual([item['status'] for item in plan['items']], ['conflict', 'conflict'])
+        self.assertFalse(self.root.exists())
+
     def test_traversal_absolute_unc_reserved_and_metadata_targets_are_invalid(self):
         bad_destinations = [
             "../evil.js",

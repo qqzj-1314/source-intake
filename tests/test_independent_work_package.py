@@ -100,7 +100,7 @@ class RequirementPackageAcceptance(IntakeTestCase):
         target = self.root / "frontend/scripts/dhcnewpro/dhcemc/demo.js"
 
         def fail_source(path, data):
-            if Path(path) == target:
+            if Path(path).resolve() == target.resolve():
                 raise OSError("injected target write failure")
             return writer(path, data)
 
