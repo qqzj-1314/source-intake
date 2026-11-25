@@ -1,0 +1,78 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp, writeFile, readFile, rm, mkdir } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { detectPython } from '../engine.mjs';
+import { generateConfigs } from '../../scripts/configure.mjs';
+
+test('universal MCP is independent of GUI and supports cross-agent requirement handoff', async t => {
+  const temp = await mkdtemp(join(tmpdir(), 'source-intake-universal-'));
+  const clients = [];
+  t.after(async () => {
+    for (const client of clients) await client.close();
+    await rm(temp, { recursive: true, force: true });
+  });
+  const python = await detectPython();
+  async function connect() {
+    const client = new Client({ name: 'generic-MCP-client', version: '1' });
+    clients.push(client);
+    await client.connect(new StdioClientTransport({ command: process.execPath, args: [fileURLToPath(new URL('../universal-server.mjs', import.meta.url))], env: { ...process.env, SOURCE_INTAKE_PYTHON: python }, stderr: 'pipe' }));
+    return client;
+  }
+  const client = await connect();
+  async function call(name, args) {
+    const response = await client.callTool({ name, arguments: args });
+    assert.ok(!response.isError, response.content?.[0]?.text);
+    return response.structuredContent;
+  }
+  const { tools } = await client.listTools();
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['intake_apply', 'intake_context', 'intake_history', 'intake_plan', 'intake_status']);
+  assert.ok(tools.every(tool => !tool._meta?.ui));
+  const status = await call('intake_status', {});
+  assert.equal(status.ok, true);
+  assert.equal(status.ui_required, false);
+  const source = join(temp, 'demo.js');
+  await writeFile(source, Buffer.from('\ufeffvar example = 1;\r\n'));
+  const document = join(temp, '需求.pdf');
+  const binary = Buffer.from('%PDF-1.7\n\x00\xff');
+  await writeFile(document, binary);
+  const root = join(temp, 'project');
+  const prompt = '  保留接口。\r\n补充：新增字段。\n';
+  const preview = await call('intake_plan', { root, requirement: { id: 'UNIVERSAL-QA', prompt }, sources: [{ path: source }, { path: document, role: 'attachment' }] });
+  const another = await connect();
+  assert.equal((await another.callTool({ name: 'intake_apply', arguments: { preview_id: preview.preview_id } })).isError, true, 'another process cannot consume a foreign preview');
+  const imported = await call('intake_apply', { preview_id: preview.preview_id });
+  assert.equal(imported.ok, true);
+  assert.deepEqual(await readFile(join(root, 'frontend/scripts/dhcnewpro/dhcemc/demo.js')), await readFile(source));
+  assert.deepEqual(await readFile(join(imported.work_package.attachments_dir, '需求.pdf')), binary);
+  assert.equal((await client.callTool({ name: 'intake_apply', arguments: { preview_id: preview.preview_id } })).isError, true);
+  await mkdir(join(imported.work_package.attachments_dir, 'later'));
+  await writeFile(join(imported.work_package.attachments_dir, 'later/补充.md'), '后来手动添加');
+  const contextResponse = await another.callTool({ name: 'intake_context', arguments: { directory: imported.work_package.dir } });
+  assert.ok(!contextResponse.isError, contextResponse.content?.[0]?.text);
+  const context = contextResponse.structuredContent;
+  assert.equal(context.prompt, prompt);
+  assert.equal(context.requirement.id, 'UNIVERSAL-QA');
+  assert.equal(context.attachments.length, 2);
+  const history = await call('intake_history', { root });
+  assert.ok(JSON.stringify(history).includes(imported.batch_id));
+  const prompts = await client.listPrompts();
+  assert.equal(prompts.prompts[0].name, 'implement_requirement');
+  const task = await client.getPrompt({ name: 'implement_requirement', arguments: { directory: imported.work_package.dir } });
+  assert.match(task.messages[0].content.text, /intake_context/);
+  const stale = await call('intake_plan', { root: join(temp, 'stale'), sources: [{ path: source }] });
+  await writeFile(source, 'var changed = true;');
+  assert.equal((await client.callTool({ name: 'intake_apply', arguments: { preview_id: stale.preview_id } })).isError, true);
+  const generated = await generateConfigs({ output: join(temp, 'configs') });
+  assert.equal(generated.files.length, 6);
+  const cfg = JSON.parse(await readFile(join(temp, 'configs/claude-code.json'), 'utf8'));
+  assert.equal(resolve(cfg.mcpServers.source_intake.args[0]), fileURLToPath(new URL('../universal-server.mjs', import.meta.url)));
+  await writeFile(join(temp, 'configs/generic.json'), '{"custom":true}');
+  await assert.rejects(generateConfigs({ client: 'generic', output: join(temp, 'configs') }), /overwrite/);
+  await mkdir(join(temp, 'invalid-exports/generic.json'), { recursive: true });
+  await assert.rejects(generateConfigs({ client: 'generic', output: join(temp, 'invalid-exports') }), /non-regular/);
+});

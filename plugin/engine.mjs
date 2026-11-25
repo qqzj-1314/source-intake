@@ -139,4 +139,17 @@ export async function applyPlan({ python, engine = DEFAULT_ENGINE, request, plan
   }
 }
 
+export async function readHistory({ python, engine = DEFAULT_ENGINE, root }) {
+  const response = await runCli({ python, engine, args: ['history', '--root', root], timeoutMs: 30000 });
+  if (response.exitCode !== 0) throw new EngineError(response.payload.error?.message || '无法读取导入历史。');
+  return response.payload;
+}
+
+export async function readRequirementContext({ python, directory }) {
+  const script = fileURLToPath(new URL('../skill/source-intake/scripts/requirement_context.py', import.meta.url));
+  const response = await runCli({ python, engine: script, args: ['--directory', directory], timeoutMs: 30000 });
+  if (response.exitCode !== 0) throw new EngineError(response.payload.error?.message || '无法读取需求材料。');
+  return response.payload;
+}
+
 export { cleanupTemp };

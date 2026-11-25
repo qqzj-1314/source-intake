@@ -1,0 +1,7 @@
+{
+  "name": "source-intake",
+  "version": "0.3.0",
+  "description": "Import source files and requirement materials with previews, original snapshots and supplemental instructions.",
+  "skills": ["./skill/"],
+  "mcpServers": "./integrations/claude-code/mcp.json"
+}

@@ -1,10 +1,22 @@
 # 源码导入 / Source Intake
 
-在 Codex 内整理从内网复制的源码、需求材料与修改说明，先建立可追溯的本地基线，再交给 AI 改需求。
+整理从内网复制的源码、需求材料与修改说明，先建立可追溯的本地基线，再交给 AI 改需求。支持标准 MCP 和可搬迁 Skill；Codex 保留内嵌面板，Claude Code、Qoder、Trae、WorkBuddy 等工具可使用通用入口。
 
 插件入口：`plugin://source-intake@source-intake-local`。面板嵌在 Codex 中，选择文件时使用系统对话框。
 
 ## 安装
+
+通用 MCP / Claude Code / Qoder / Trae / WorkBuddy：
+
+```sh
+npm --prefix plugin ci --ignore-scripts
+node scripts/configure.mjs --client all
+node scripts/doctor.mjs --config plugin/.local/clients/generic.json
+```
+
+将对应配置添加到宿主 MCP 设置。Claude Code 也可在安装依赖后使用 `claude --plugin-dir <本项目目录>` 加载原生本地插件。具体命令、宿主验证情况和边界见 [兼容性与安装](docs/compatibility.md)。通用入口不要求 Codex 或 Tk；Windows/macOS/Linux 的实际验证范围以兼容性记录为准。
+
+以下为 **Codex 内嵌面板** 安装方式：
 
 Windows、Node.js 22.19+、npm、Python 3.10+（含 Tk），以及支持本地插件的 Codex Desktop。
 
@@ -54,6 +66,12 @@ python -X utf8 -m unittest discover -s tests -v
 ```
 
 `plugin/` 是 MCP Apps 面板与 stdio 服务，`skill/source-intake/` 是 Skill 与 Python 导入内核，`tests/` 是内核测试。Skill 可单独复制到 Codex 的 skills 目录。
+
+`plugin/universal-server.mjs` 是所有标准 MCP 客户端共用的无界面入口；`scripts/configure.mjs` 导出配置，`scripts/doctor.mjs` 实际连接服务器检查内核。其他智能体可用其 Skill 导入入口加载 `skill/source-intake/`，或直接按 SKILL.md 执行 CLI。
+
+每次跨工具接续需求时使用 `intake_context`，或执行 `python skill/source-intake/scripts/requirement_context.py --directory <需求目录>`，重新汇总补充提示词和后来添加的附件，再实际阅读图片或文档。
+
+产品改进见 [CHANGELOG](CHANGELOG.md)，持续迭代计划见 [产品计划](docs/PRODUCT-ROADMAP.md)。
 
 测试默认使用临时目录和合成输入。可选的现场只读集成测试在没有对应本地样例时跳过；不会将现场项目放入此仓库。
 

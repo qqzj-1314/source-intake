@@ -13,6 +13,9 @@ from pathlib import Path
 def build() -> Path:
     root = Path(__file__).resolve().parents[1]
     version = json.loads((root / "plugin/package.json").read_text(encoding="utf-8"))["version"]
+    native_manifest = root / ".claude-plugin/plugin.json"
+    if native_manifest.exists() and json.loads(native_manifest.read_text(encoding="utf-8"))["version"] != version:
+        raise SystemExit("Claude plugin manifest version must match plugin/package.json.")
     dirty = subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root)
     if dirty.strip():
         raise SystemExit("Commit tracked changes before packaging.")
