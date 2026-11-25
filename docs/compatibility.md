@@ -5,7 +5,7 @@
 
 ## 通用安装
 
-需要 Node.js 22.19+、npm、Python 3.10+。通用 MCP 和 CLI 不依赖 Tk、Codex 或桌面窗口。
+通用发行包需要 Node.js 22.19+、Python 3.10+；开发构建和 Codex 面板安装另外需要 npm。通用 MCP 和 CLI 不依赖 Tk、Codex 或桌面窗口。
 
 ```sh
 node scripts/configure.mjs --client all

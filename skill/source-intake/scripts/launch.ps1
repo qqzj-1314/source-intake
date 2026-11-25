@@ -10,7 +10,7 @@ if ($pyLauncher) {
 
 $python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $python) {
-    Write-Error "Python 3.13 was not found. Please ensure 'py -3' or 'python' is available."
+    Write-Error "Python 3.10+ was not found. Please ensure 'py -3' or 'python' is available."
     exit 1
 }
 & $python.Source $GuiScript

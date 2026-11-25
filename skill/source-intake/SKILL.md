@@ -21,7 +21,7 @@ metadata:
 - Codex 人工交互：可打开 [源码导入插件](plugin://source-intake@source-intake-local) 或调用 `open_panel`。用户在面板内先预览再导入；其他宿主不依赖此入口。
 - 程序化导入：构造请求 JSON，用 `"<skill>/scripts/source_intake.py"` 的 `plan`/`apply`。不要让 GUI 阻塞自动化流程。
 
-脚本只需 Python 3.13 标准库；不要安装依赖，也不要启动后台剪贴板监听。
+脚本只需 Python 3.10+ 标准库；不要安装依赖，也不要启动后台剪贴板监听。
 
 ## 程序化导入流程
 
