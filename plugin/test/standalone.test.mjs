@@ -36,7 +36,7 @@ test('release runs without any development node_modules and refuses stale or dam
   const environment = { ...process.env, NODE_PATH: '', SOURCE_INTAKE_PYTHON: python, SOURCE_INTAKE_ENGINE: join(temp, 'skill/source-intake/scripts/source_intake.py') };
   await run(process.execPath, ['scripts/configure.mjs', '--client', 'generic', '--output', 'configs'], { cwd: temp, env: environment, timeout: 30000 });
   const config = JSON.parse(await readFile(join(temp, 'configs/generic.json'), 'utf8'));
-  assert.equal(config.mcpServers.source_intake.args[0], join(temp, 'plugin/launch.mjs'));
+  assert.equal(await realpath(config.mcpServers.source_intake.args[0]), await realpath(join(temp, 'plugin/launch.mjs')));
   const health = await run(process.execPath, ['plugin/doctor-launch.mjs', '--config', 'configs/generic.json'], { cwd: temp, env: environment, timeout: 30000 });
   assert.equal(JSON.parse(health.stdout).ok, true);
   assert.equal(JSON.parse(health.stdout).status.runtime_mode, 'standalone');
