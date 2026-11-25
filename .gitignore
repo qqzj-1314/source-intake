@@ -13,6 +13,7 @@
 !/.claude-plugin/
 !/integrations/
 !/.github/
+!/bin/
 **/node_modules/
 **/.local/
 **/__pycache__/

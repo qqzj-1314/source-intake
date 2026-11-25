@@ -2,7 +2,7 @@
   "mcpServers": {
     "source_intake": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/plugin/universal-server.mjs"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/plugin/launch.mjs"]
     }
   }
 }

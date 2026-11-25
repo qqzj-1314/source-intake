@@ -6,15 +6,16 @@
 
 ## 安装
 
-通用 MCP / Claude Code / Qoder / Trae / WorkBuddy：
+通用 MCP / Claude Code / Qoder / Trae / WorkBuddy：下载完整发行包并解压，准备 Node.js 22.19+ 和 Python 3.10+，无需先安装 npm 依赖：
 
 ```sh
-npm --prefix plugin ci --ignore-scripts
 node scripts/configure.mjs --client all
-node scripts/doctor.mjs --config plugin/.local/clients/generic.json
+node plugin/doctor-launch.mjs --config plugin/.local/clients/generic.json
 ```
 
-将对应配置添加到宿主 MCP 设置。Claude Code 也可在安装依赖后使用 `claude --plugin-dir <本项目目录>` 加载原生本地插件。具体命令、宿主验证情况和边界见 [兼容性与安装](docs/compatibility.md)。通用入口不要求 Codex 或 Tk；Windows/macOS/Linux 的实际验证范围以兼容性记录为准。
+将对应配置添加到宿主 MCP 设置。Claude Code 也可使用 `claude --plugin-dir <本项目目录>` 加载原生本地插件。具体命令、宿主验证情况和边界见 [兼容性与安装](docs/compatibility.md)。通用入口不要求 Codex 或 Tk；不会在启动时自动联网装依赖。
+
+只使用 Skill 的工具可下载 `source-intake-skill-<版本>.skill` 或同内容 ZIP，使用宿主的导入入口，或解压后将 `source-intake` 目录放入其 Skills 目录。Skill 的 Python CLI 仅用标准库，不需要 Node.js；各宿主的实际导入验证情况见兼容性记录。
 
 以下为 **Codex 内嵌面板** 安装方式：
 
@@ -76,6 +77,8 @@ python -X utf8 -m unittest discover -s tests -v
 
 测试默认使用临时目录和合成输入。可选的现场只读集成测试在没有对应本地样例时跳过；不会将现场项目放入此仓库。
 
-提交完成后运行 `python scripts/build-release.py` 生成 `dist/source-intake-<版本>.zip` 和 SHA256 校验文件。脚本只打包 Git 已提交内容，并附带提交号及逐文件校验清单。
+源码开发时先 `node scripts/build-standalone.mjs`，再运行测试并提交。提交完成后运行 `python scripts/build-release.py` 生成完整项目包、独立 Skill 包及 SHA256 校验文件。脚本仅打包 Git 已提交内容，Skill 也从该提交的原始字节生成；重复打包同一提交的 ZIP 元数据固定。
 
-发布包由 Git 中的产品源文件生成，不包含本机配置、凭据、个人偏好、真实需求附件、导入批次或 node_modules。使用锁文件安装依赖；离线机器需事先准备 npm 缓存。
+发布包不包含本机配置、凭据、个人偏好、真实需求附件、导入批次或 node_modules。`bin/` 包含预编译的通用服务与健康检查器，以及依赖声明和第三方许可文本；源文件与产物哈希不匹配时不会在无依赖环境中执行陈旧产物。Node.js 和 Python 本身仍需提前具备。
+
+`bin/*.mjs` 是生成物，请修改源码并重新构建。开发环境装有依赖时可回退源码，健康检查中的 `runtime_mode` 区分 `standalone` 与 `source`。Codex 内嵌面板继续使用原安装流程；通用离线入口和 Skill 是另外两种使用方式。

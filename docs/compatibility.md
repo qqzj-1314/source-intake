@@ -8,12 +8,12 @@
 需要 Node.js 22.19+、npm、Python 3.10+。通用 MCP 和 CLI 不依赖 Tk、Codex 或桌面窗口。
 
 ```sh
-npm --prefix plugin ci --ignore-scripts
 node scripts/configure.mjs --client all
-node scripts/doctor.mjs --config plugin/.local/clients/generic.json
+node plugin/doctor-launch.mjs --config plugin/.local/clients/generic.json
 ```
 
 可用 `--python <解释器绝对路径>` 指定 Python，`--output <目录>` 改输出目录。生成器只写导出文件，保留原客户端配置；目标文件内容不同则拒绝覆盖，显式 `--force` 才备份后重写。
+0.5.0 起完整包自带编译后的通用运行时和依赖许可文本。没有开发用 node_modules 也能导出配置、运行 doctor 和启动通用 MCP；Node/Python 仍是前提。修改源码或依赖锁后需要重新构建，不能把陈旧 bin 当作最新实现。升级旧版本后应重新导出使用 launch.mjs 的配置。
 
 同一服务器提供 `intake_status`、`intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`，以及 `implement_requirement` 提示词。
 智能体先预览，使用同一 MCP 连接返回的 preview_id 执行；令牌过期、使用过或来源变更后需要重新预览。
@@ -37,7 +37,7 @@ Windows 终端粘贴 JSON 时须遵守当前 Shell 引号规则；也可让目�
 没有 MCP 的工具可导入 `skill/source-intake/`，按 SKILL.md 调用 Python CLI。
 Skill 安装目录和宿主自动发现规则不同；可使用其“导入 Skill”入口，不能假定所有软件都读取 `.codex/skills`。
 
-Claude 原生插件的依赖先按通用安装步骤安装；私有本地插件校验有公开目录许可/图标提示，本项目没有声明开源许可，也没有向公共市场发布。
+Claude 原生插件通过同一已编译入口启动；私有本地插件校验有公开目录许可/图标提示，本项目没有声明开源许可，也没有向公共市场发布。
 
 ## UI 和平台边界
 

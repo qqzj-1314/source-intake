@@ -1,19 +1,24 @@
 {
   "name": "source-intake-plugin",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "Codex 内嵌源码导入面板：复用 source-intake Python 内核，预览后导入并关联需求编号。",
+  "description": "跨智能体源码与需求材料导入：通用MCP、可搬迁Skill及Codex内嵌面板。",
   "engines": {
     "node": ">=22.19.0"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "prepare-plugin": "node prepare-plugin.mjs",
-    "harness": "node harness.mjs"
+    "harness": "node harness.mjs",
+    "build:standalone": "node ../scripts/build-standalone.mjs",
+    "verify:standalone": "node ../scripts/verify-standalone.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",
     "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

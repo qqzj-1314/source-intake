@@ -12,7 +12,7 @@ export async function generateConfigs({ client = 'all', output = join(project, '
   const pythonPath = python || await detectPython();
   await access(pythonPath);
   await access(node);
-  const entry = join(project, 'plugin/universal-server.mjs');
+  const entry = join(project, 'plugin/launch.mjs');
   const spec = { command: node, args: [entry], env: { SOURCE_INTAKE_PYTHON: pythonPath, SOURCE_INTAKE_ENGINE: DEFAULT_ENGINE } };
   const config = { mcpServers: { source_intake: spec } };
   const directory = resolve(output);

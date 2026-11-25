@@ -11,6 +11,8 @@ on:
       - 'tests/**'
       - '.github/workflows/**'
       - '.claude-plugin/**'
+      - 'bin/**'
+      - 'integrations/**'
   pull_request:
     paths:
       - 'plugin/**'
@@ -19,6 +21,8 @@ on:
       - 'tests/**'
       - '.github/workflows/**'
       - '.claude-plugin/**'
+      - 'bin/**'
+      - 'integrations/**'
 
 permissions:
   contents: read
@@ -56,10 +60,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb tk
       - name: Install locked dependencies
         run: npm --prefix plugin ci --ignore-scripts
+      - name: Verify committed standalone runtime matches current source
+        run: node scripts/verify-standalone.mjs
       - name: Generate local client configurations
         run: node scripts/configure.mjs --client all
       - name: Verify actual MCP connection and Python engine
-        run: node scripts/doctor.mjs --config plugin/.local/clients/generic.json
+        run: node plugin/doctor-launch.mjs --config plugin/.local/clients/generic.json
       - name: MCP and panel regression tests
         run: npm --prefix plugin test
       - name: Python regression tests with Linux display

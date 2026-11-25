@@ -74,7 +74,7 @@ test('universal MCP is independent of GUI and supports cross-agent requirement h
   const generated = await generateConfigs({ output: join(temp, 'configs') });
   assert.equal(generated.files.length, 6);
   const cfg = JSON.parse(await readFile(join(temp, 'configs/claude-code.json'), 'utf8'));
-  assert.equal(resolve(cfg.mcpServers.source_intake.args[0]), fileURLToPath(new URL('../universal-server.mjs', import.meta.url)));
+  assert.equal(resolve(cfg.mcpServers.source_intake.args[0]), fileURLToPath(new URL('../launch.mjs', import.meta.url)));
   await writeFile(join(temp, 'configs/generic.json'), '{"custom":true}');
   await assert.rejects(generateConfigs({ client: 'generic', output: join(temp, 'configs') }), /overwrite/);
   await mkdir(join(temp, 'invalid-exports/generic.json'), { recursive: true });

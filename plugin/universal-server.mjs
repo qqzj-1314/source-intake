@@ -18,7 +18,7 @@ const readonly = { readOnlyHint: true, destructiveHint: false, openWorldHint: fa
 export async function createUniversalServer({ python, engine, previewTtlMs, now } = {}) {
   const executable = python || await detectPython();
   const enginePath = engine || process.env.SOURCE_INTAKE_ENGINE || DEFAULT_ENGINE;
-  const { version } = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
+  const { version } = JSON.parse(await readFile(new URL('../plugin/package.json', import.meta.url), 'utf8'));
   const server = new McpServer({ name: 'source_intake', version });
   const cache = new PreviewCache({ ttlMs: previewTtlMs, now });
   const guard = fn => async args => { try { return result(await fn(args)); } catch (error) { return failure(error); } };
@@ -30,6 +30,7 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
     await access(enginePath, constants.R_OK);
     await planRequest({ python: executable, engine: enginePath, request: { root: join(tmpdir(), 'source-intake-healthcheck'), sources: [] } });
     return { ok: true, version, transport: 'stdio', platform: process.platform,
+      runtime_mode: import.meta.url.endsWith('/bin/universal-server.mjs') ? 'standalone' : 'source',
       capabilities: ['plan', 'apply', 'history', 'requirement-context', 'requirement-index'],
       python: executable, engine: enginePath, ui_required: false, clipboard_access: false };
   }));
@@ -84,8 +85,10 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
   return server;
 }
 
-const invoked = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';
-if (invoked === import.meta.url) {
+export async function serveUniversal() {
   const server = await createUniversalServer();
   await server.connect(new StdioServerTransport());
 }
+
+const invoked = process.argv[1] ? pathToFileURL(resolve(process.argv[1])).href : '';
+if (invoked === import.meta.url) await serveUniversal();
