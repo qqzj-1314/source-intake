@@ -6,7 +6,7 @@ import { PANEL_URI } from '../server.mjs';
 import { fixture, createNative, previewArgs, readJson, writeLegacySettings } from './helpers.mjs';
 
 const APP_ONLY = ['panel_state', 'panel_choose_directory', 'panel_choose_files', 'panel_clipboard',
-  'panel_preview', 'panel_import', 'panel_save_settings'];
+  'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot'];
 
 test('real MCP initialize/tools/resources expose the panel resource and app-only tools', async t => {
   const { client, call } = await fixture(t);

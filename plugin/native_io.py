@@ -94,6 +94,93 @@ def read_clipboard() -> dict[str, Any]:
     return {"ok": True, "kind": "empty", **({"note": note} if note else {})}
 
 
+def dib_to_png(data: bytes) -> bytes:
+    """Convert standard Windows BGR DIB screenshots without third-party libraries."""
+    import struct
+    import zlib
+    if len(data) < 40:
+        raise ValueError("截图DIB头不完整")
+    header, width, height, planes, depth, compression = struct.unpack_from('<IiiHHI', data)
+    if header < 40 or header > len(data) or planes != 1 or depth not in (24, 32) or compression not in (0, 3):
+        raise ValueError("暂不支持此截图格式，请保存为图片后选择文件")
+    if width <= 0 or height == 0 or width * abs(height) > 20_000_000:
+        raise ValueError("截图尺寸过大或无效")
+    offset = header
+    if compression == 3:
+        if depth != 32 or len(data) < 52:
+            raise ValueError("不支持的截图颜色掩码")
+        masks = struct.unpack_from('<III', data, 40)
+        if masks != (0xff0000, 0xff00, 0xff):
+            raise ValueError("不支持的截图颜色掩码")
+        if header == 40:
+            offset += 12
+    colors = struct.unpack_from('<I', data, 32)[0]
+    offset += colors * 4
+    stride = ((width * depth + 31) // 32) * 4
+    rows = abs(height)
+    if offset + stride * rows > len(data):
+        raise ValueError("截图像素不完整")
+    raw = bytearray()
+    step = depth // 8
+    for y in range(rows):
+        row = y if height < 0 else rows - 1 - y
+        pixels = memoryview(data)[offset + row * stride:offset + row * stride + width * step]
+        raw.append(0)
+        for x in range(0, len(pixels), step):
+            raw.extend((pixels[x + 2], pixels[x + 1], pixels[x]))
+    def chunk(kind, payload):
+        return struct.pack('>I', len(payload)) + kind + payload + struct.pack('>I', zlib.crc32(kind + payload) & 0xffffffff)
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, rows, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+
+
+def read_screenshot() -> dict[str, Any]:
+    import base64
+    if os.name != 'nt':
+        return {"ok": True, "note": "请将截图保存为图片后选择文件。"}
+    user = ctypes.WinDLL('user32', use_last_error=True)
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    user.OpenClipboard.argtypes = [ctypes.c_void_p]
+    user.OpenClipboard.restype = ctypes.c_bool
+    user.CloseClipboard.argtypes = []
+    user.GetClipboardData.argtypes = [ctypes.c_uint]
+    user.GetClipboardData.restype = ctypes.c_void_p
+    user.IsClipboardFormatAvailable.argtypes = [ctypes.c_uint]
+    user.RegisterClipboardFormatW.argtypes = [ctypes.c_wchar_p]
+    user.RegisterClipboardFormatW.restype = ctypes.c_uint
+    kernel.GlobalSize.argtypes = [ctypes.c_void_p]
+    kernel.GlobalSize.restype = ctypes.c_size_t
+    kernel.GlobalLock.argtypes = [ctypes.c_void_p]
+    kernel.GlobalLock.restype = ctypes.c_void_p
+    kernel.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    if not user.OpenClipboard(None):
+        raise OSError('无法打开剪贴板')
+    try:
+        png_format = user.RegisterClipboardFormatW('PNG')
+        for fmt in (png_format, 17, 8):
+            if not fmt or not user.IsClipboardFormatAvailable(fmt):
+                continue
+            handle = user.GetClipboardData(fmt)
+            if not handle:
+                continue
+            size = kernel.GlobalSize(handle)
+            if not 0 < size <= 80_000_000:
+                raise ValueError('截图过大，请保存为图片后选择文件')
+            pointer = kernel.GlobalLock(handle)
+            if not pointer:
+                continue
+            try:
+                data = ctypes.string_at(pointer, size)
+            finally:
+                kernel.GlobalUnlock(handle)
+            png = data if fmt == png_format else dib_to_png(data)
+            if len(png) > 20_000_000 or not png.startswith(b'\x89PNG\r\n\x1a\n'):
+                raise ValueError('截图格式无效或过大，请使用选择文件')
+            return {"ok": True, "png_base64": base64.b64encode(png).decode('ascii')}
+        return {"ok": True, "note": "剪贴板中没有截图，请复制截图或选择图片文件。"}
+    finally:
+        user.CloseClipboard()
+
+
 def _make_root():
     import tkinter as tk
 
@@ -142,7 +229,7 @@ def choose_files(initial: Any) -> dict[str, Any]:
 
     root = _make_root()
     try:
-        options = {"title": "选择源码或 .txt 附件"}
+        options = {"title": "选择源码或需求附件", "filetypes": [("所有文件", "*.*")]}
         start = _initial_dir(initial)
         if start:
             options["initialdir"] = start
@@ -156,6 +243,7 @@ def choose_files(initial: Any) -> dict[str, Any]:
 
 
 COMMANDS = {
+    "screenshot": lambda payload: read_screenshot(),
     "clipboard": lambda payload: read_clipboard(),
     "choose_directory": lambda payload: choose_directory(payload.get("initial")),
     "choose_files": lambda payload: choose_files(payload.get("initial")),

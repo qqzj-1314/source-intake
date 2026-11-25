@@ -1,5 +1,5 @@
 import { createServer as createHttpServer } from 'node:http';
-import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -79,10 +79,14 @@ async function setupDemo(root) {
   const sourceDir = join(root, '演示来源');
   await mkdir(sourceDir, { recursive: true });
   const files = {
+    image: join(sourceDir, '需求截图.png'),
+    document: join(sourceDir, '需求文档.pdf'),
     js: join(sourceDir, 'demo.js'),
     css: join(sourceDir, 'demo.css'),
     csp: join(sourceDir, 'demo.csp'),
   };
+  await writeFile(files.image, Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6s8AAAAASUVORK5CYII=', 'base64'));
+  await writeFile(files.document, '%PDF-1.7\nSynthetic requirement document\n');
   await writeFile(files.js, '// demo.js\nconst banner = "<script>alert(\\"演示\\")</script>";\nfunction demo() { return banner; }\n', 'utf8');
   await writeFile(files.css, '/* demo.css */\n.demo-card { color: #3B6E5A; padding: 8px; }\n', 'utf8');
   await writeFile(files.csp, '<!-- demo.csp -->\n<csp:if condition="1">\n<div class="demo-card">演示</div>\n</csp:if>\n', 'utf8');
@@ -102,7 +106,8 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
   const native = {
     clipboard: async () => ({ ok: true, kind: 'files', files: [demo.files.js, demo.files.css, demo.files.csp] }),
     chooseDirectory: async () => ({ ok: true, canceled: false, path: demo.projectRoot }),
-    chooseFiles: async () => ({ ok: true, canceled: false, paths: [demo.files.js, demo.files.css, demo.files.csp] }),
+    chooseFiles: async (initial, purpose) => ({ ok: true, canceled: false, paths: purpose === 'attachment' ? [demo.files.image, demo.files.document] : [demo.files.js, demo.files.css, demo.files.csp] }),
+    screenshot: async () => ({ ok: true, png_base64: (await readFile(demo.files.image)).toString('base64') }),
   };
   const mcp = await createServer({ python: pythonPath, engine, settingsDir, native, serverName: 'source_intake_harness' });
   const client = new Client({ name: 'source-intake-harness', version: '0.1.0' });
@@ -111,10 +116,16 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
   await client.connect(clientTransport);
 
   const allowedTools = new Set(['open_panel', 'panel_state', 'panel_choose_directory', 'panel_choose_files',
-    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings']);
+    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot']);
+  const screenshotPaths = new Set();
 
   async function restrictedCall(name, args) {
     if (!allowedTools.has(name)) throw new Error('该工具在验收 Harness 中不可用。');
+    if (name === 'panel_screenshot') {
+      const response = await client.callTool({ name, arguments: args });
+      if (response.structuredContent?.path) screenshotPaths.add(await realpath(response.structuredContent.path));
+      return response;
+    }
     if (name === 'panel_preview') {
       if (!within(args.root, root)) throw new Error('Harness 只允许操作临时演示目录。');
       let realRoot = resolve(root);
@@ -123,7 +134,7 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
         if (typeof source.path !== 'string') continue;
         let candidate = resolve(source.path);
         try { candidate = await realpath(candidate); } catch {}
-        if (!within(candidate, realRoot)) throw new Error('Harness 只允许导入临时演示来源。');
+        if (!within(candidate, realRoot) && !screenshotPaths.has(candidate)) throw new Error('Harness 只允许导入临时演示来源。');
       }
     }
     if (name === 'panel_save_settings' && !within(args.root, root)) {

@@ -1,5 +1,14 @@
 # source_intake CLI 与数据格式
 
+## 需求截图、文档与补充说明
+
+新请求可增加 `work_package: {"enabled": true, "token": "本次唯一标识"}`；
+`requirement.prompt` 保存用户补充修改提示词原文。附件来源使用
+`{"path": "图片或文档路径", "role": "attachment"}`，直接按字节存入该需求包的 `attachments/`，不做源码识别。
+启用工作包后，`sources: []` 也可导入，从而生成 README、结构化需求、修改说明及空附件目录。
+未提供 token/name 时 plan 自动分配名称，apply 需传对应 `--expected-plan` 才复用该名称。
+返回的 `work_package.dir` 是交给 AI 的需求目录。每次新预览应生成新的唯一标识，不能复用已存在的需求包名称覆盖旧材料。
+
 脚本：`scripts/source_intake.py`（相对本参考文件上一级的 Skill 目录）。只用标准库；stdout 始终输出 JSON（诊断写 stderr）。
 
 ```text

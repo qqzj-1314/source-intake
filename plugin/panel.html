@@ -157,6 +157,8 @@
           <label class="field" for="requirement-url"><span class="field-label">需求链接</span><input id="requirement-url" type="text" autocomplete="off" placeholder="可选"></label>
         </div>
         <label class="field" for="requirement-description" style="margin-top:14px"><span class="field-label">需求描述</span><textarea id="requirement-description" rows="3" spellcheck="false"></textarea></label>
+        <label class="field" for="requirement-prompt" style="margin-top:14px"><span class="field-label">修改提示词 / 补充说明</span><textarea id="requirement-prompt" rows="5" spellcheck="false" placeholder="补充具体修改方式、约束、验收标准；按原文保存为修改说明.md"></textarea></label>
+        <div class="toolbar"><button id="create-empty" class="btn" type="button">创建空白需求目录</button><span class="hint">保存当前需求与补充说明，创建 attachments 空目录；可自行放入材料。</span></div>
       </section>
       <section class="card" aria-label="目录规则">
         <div class="card-head"><h2>目录规则</h2><p class="hint">hisui 使用项目默认层级；flat 平铺到根目录。四类目录均可修改。</p></div>
@@ -188,6 +190,11 @@
         </div>
         <div id="source-list" class="sources"></div>
         <p id="source-empty" class="hint">尚未添加来源。剪贴板优先读取文件列表，其次读取文本。</p>
+      </section>
+      <section class="card" aria-label="需求附件">
+        <div class="card-head"><h2>需求附件</h2><p class="hint">图片、Word、PDF 或其他文档，原样保存。也支持仅有附件的需求。</p></div>
+        <div class="toolbar"><button id="choose-attachments" class="btn" type="button">选择需求附件…</button><button id="attachment-clipboard" class="btn" type="button">收集复制的附件</button><button id="capture-screenshot" class="btn" type="button">收集剪贴板截图</button></div>
+        <div id="attachment-list" class="sources"></div>
       </section>
       <section class="card" aria-label="预览与导入">
         <div class="card-head"><h2>预览与导入</h2><p class="hint">先预览再导入；编辑任何内容后需重新预览。</p></div>

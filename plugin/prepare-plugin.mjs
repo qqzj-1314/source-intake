@@ -1,4 +1,4 @@
-import { access, mkdir, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -35,6 +35,7 @@ export async function preparePlugin({
   await assertFile(serverEntry, '面板服务端');
 
   const pluginRoot = join(marketplaceRoot, 'plugins', 'source-intake');
+  const { version } = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
   const catalogPath = join(marketplaceRoot, '.agents', 'plugins', 'marketplace.json');
   await Promise.all([
     mkdir(join(marketplaceRoot, '.agents', 'plugins'), { recursive: true }),
@@ -43,7 +44,7 @@ export async function preparePlugin({
 
   await writeJson(join(pluginRoot, '.codex-plugin', 'plugin.json'), {
     name: 'source-intake',
-    version: '0.1.0',
+    version,
     description: 'Codex 内嵌源码导入面板：预览后把源码文件或粘贴代码导入本地项目，并关联需求编号。',
     author: { name: 'source-intake' },
     mcpServers: './.mcp.json',

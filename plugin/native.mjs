@@ -33,7 +33,10 @@ function invoke(python, command, payload, timeoutMs) {
     }, timeoutMs);
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
-    child.stdout.on('data', chunk => { if (stdout.length < 4 * 1024 * 1024) stdout += chunk; });
+    child.stdout.on('data', chunk => {
+      if (stdout.length + chunk.length > 28_000_000) { child.kill(); finish(new NativeError('输入过大，请使用选择文件。')); }
+      else stdout += chunk;
+    });
     child.stderr.on('data', chunk => { if (stderr.length < 64 * 1024) stderr += chunk; });
     child.on('error', error => finish(new NativeError(`无法启动原生桥：${error.message}`)));
     child.on('close', code => {
@@ -62,6 +65,7 @@ export function createNativeBridge({ python, timeoutMs = 120000 } = {}) {
   if (!python) throw new NativeError('缺少已检测的 Python 路径。');
   return {
     clipboard: () => invoke(python, 'clipboard', {}, timeoutMs),
+    screenshot: () => invoke(python, 'screenshot', {}, timeoutMs),
     chooseDirectory: initial => invoke(python, 'choose_directory', { initial }, timeoutMs),
     chooseFiles: initial => invoke(python, 'choose_files', { initial }, timeoutMs),
   };

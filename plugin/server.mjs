@@ -1,4 +1,7 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, writeFile, rm, realpath } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -17,6 +20,7 @@ const result = value => ({ content: [{ type: 'text', text: JSON.stringify(value)
 const toolError = error => ({ isError: true, content: [{ type: 'text', text: error?.message || '操作失败，请重试。' }] });
 
 const sourceSchema = z.object({
+  role: z.enum(['source', 'attachment']).optional(),
   path: z.string().trim().min(1).max(4096).optional(),
   text: z.string().max(4_000_000).optional(),
   filename: z.string().trim().max(255).optional(),
@@ -34,6 +38,7 @@ const requirementSchema = z.object({
   id: z.string().max(200).optional(),
   title: z.string().max(500).optional(),
   description: z.string().max(20000).optional(),
+  prompt: z.string().max(100000).optional(),
   url: z.string().max(2000).optional(),
 }).strict();
 
@@ -45,7 +50,8 @@ const previewSchema = z.object({
   routes: routesSchema.optional(),
   cls_layout: z.enum(['package', 'fullname']).default('package'),
   requirement: requirementSchema.optional(),
-  sources: z.array(sourceSchema).min(1).max(200),
+  sources: z.array(sourceSchema).max(200),
+  work_package: z.boolean().default(false),
 }).strict();
 
 const importSchema = z.object({
@@ -85,6 +91,7 @@ export function buildRequest(input) {
       throw new EngineError('粘贴内容为空，请补充源码后重新预览。');
     }
     const spec = {};
+    if (source.role) spec.role = source.role;
     if (source.path) spec.path = source.path.trim();
     else spec.text = source.text;
     if (source.filename?.trim()) spec.filename = source.filename.trim();
@@ -102,10 +109,12 @@ export function buildRequest(input) {
       id: input.requirement?.id?.trim() || '',
       title: input.requirement?.title?.trim() || '',
       description: input.requirement?.description ?? '',
+      prompt: input.requirement?.prompt ?? '',
       url: input.requirement?.url?.trim() || '',
       updated_at: '',
     },
     sources,
+    ...(input.work_package ? { work_package: { token: randomUUID().replaceAll('-', '') } } : {}),
   };
 }
 
@@ -127,7 +136,45 @@ export async function createServer({
   const store = new SettingsStore(settingsDir ? { dir: settingsDir } : {});
   const nativeBridge = native || createNativeBridge({ python: pythonPath });
   const previews = new PreviewCache({ ttlMs: previewTtlMs, now, randomId });
-  const server = new McpServer({ name: serverName, version: '0.1.0' });
+  const screenshotDirs = new Set();
+  const { version } = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
+  const server = new McpServer({ name: serverName, version });
+  const cleanupScreenshots = async () => {
+    const temp = await realpath(tmpdir());
+    await Promise.allSettled([...screenshotDirs].map(async path => {
+      const actual = await realpath(path);
+      if (dirname(actual).toLowerCase() !== temp.toLowerCase() || !basename(actual).startsWith('source-intake-screenshot-')) return;
+      await rm(actual, { recursive: true, force: true });
+      screenshotDirs.delete(path);
+    }));
+  };
+  const close = server.close.bind(server);
+  server.close = async () => {
+    await close();
+    await cleanupScreenshots();
+  };
+  server.server.onclose = () => { void cleanupScreenshots(); };
+
+  server.registerTool('panel_screenshot', {
+    title: '收集剪贴板截图',
+    description: '仅响应用户点击读取剪贴板截图，暂存PNG供需求附件导入。',
+    inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
+  }, async () => {
+    try {
+      const captured = await nativeBridge.screenshot();
+      if (!captured?.png_base64) return result({ canceled: true, note: captured?.note || '剪贴板中没有截图，可选择已保存的图片。' });
+      if (captured.png_base64.length > 28_000_000) throw new NativeError('截图过大，请保存为图片后选择文件。');
+      const png = Buffer.from(captured.png_base64, 'base64');
+      if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) throw new NativeError('截图格式无效。');
+      const dir = await mkdtemp(join(tmpdir(), 'source-intake-screenshot-'));
+      screenshotDirs.add(dir);
+      const path = join(dir, `截图-${randomUUID().slice(0, 8)}.png`);
+      await writeFile(path, png);
+      return result({ canceled: false, path });
+    } catch (error) { return toolError(error); }
+  });
 
   server.registerResource('source-intake-panel', PANEL_URI, {
     title: '源码导入',
@@ -196,12 +243,12 @@ export async function createServer({
   server.registerTool('panel_choose_files', {
     title: '选择来源文件',
     description: '响应用户点击，短暂显示系统文件选择框并返回所选文件路径；取消时返回空列表。只选择，不读取内容、不写入文件。App-only；模型不可见。',
-    inputSchema: z.object({ initial: z.string().max(4096).optional() }).strict(),
+    inputSchema: z.object({ initial: z.string().max(4096).optional(), purpose: z.enum(['source', 'attachment']).optional() }).strict(),
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
-  }, async ({ initial }) => {
+  }, async ({ initial, purpose }) => {
     try {
-      const value = await nativeBridge.chooseFiles(initial?.trim() || '');
+      const value = await nativeBridge.chooseFiles(initial?.trim() || '', purpose);
       const canceled = value?.canceled !== false;
       return result({ canceled, paths: canceled ? [] : sanitizePaths(value.paths) });
     } catch (error) { return toolError(error); }

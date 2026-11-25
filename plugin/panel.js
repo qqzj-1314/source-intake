@@ -1,7 +1,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const KINDS = ['csp', 'js', 'css', 'cls'];
-  const KIND_TEXT = { csp: 'CSP', js: 'JS', css: 'CSS', cls: 'CLS' };
+  const KIND_TEXT = { csp: 'CSP', js: 'JS', css: 'CSS', cls: 'CLS', attachment: '附件' };
   const DEFAULT_ROUTES = {
     hisui: {
       csp: 'frontend/csp',
@@ -20,7 +20,7 @@
   const state = {
     ready: false, busy: false, settings: null, defaults: { profile: 'hisui', routes: DEFAULT_ROUTES.hisui, cls_layout: 'package' },
     root: '', projectName: '', profile: 'hisui', routes: { ...DEFAULT_ROUTES.hisui }, clsLayout: 'package',
-    requirement: { id: '', title: '', description: '', url: '' },
+    requirement: { id: '', title: '', description: '', url: '', prompt: '' },
     sources: [], nextSourceId: 1, sessionId: randomId(), preview: null, previewBlocked: false, revision: 0,
   };
   const rowRefs = new Map();
@@ -54,7 +54,7 @@
   const routeInputs = { csp: $('route-csp'), js: $('route-js'), css: $('route-css'), cls: $('route-cls') };
   const requirementInputs = {
     id: $('requirement-id'), title: $('requirement-title'),
-    description: $('requirement-description'), url: $('requirement-url'),
+    description: $('requirement-description'), url: $('requirement-url'), prompt: $('requirement-prompt'),
   };
   const conflictSelect = $('conflict');
   const sourceList = $('source-list');
@@ -68,7 +68,7 @@
   const statusLine = $('status');
   const previewButton = $('preview');
   const importButton = $('import');
-  const buttons = ['choose-directory', 'collect-clipboard', 'choose-files', 'paste-code', 'add-paste', 'cancel-paste', 'preview']
+  const buttons = ['choose-directory', 'collect-clipboard', 'choose-files', 'paste-code', 'add-paste', 'cancel-paste', 'preview', 'create-empty', 'choose-attachments', 'attachment-clipboard', 'capture-screenshot']
     .map(id => $(id));
 
   function setConnection(kind, text) {
@@ -181,7 +181,7 @@
     const ref = rowRefs.get(entry.id);
     if (!ref) return;
     const item = entry.preview || {};
-    const kind = item.kind || extensionKind(entry.filename || entry.destination || entry.path);
+    const kind = item.kind || (entry.role === 'attachment' ? 'attachment' : extensionKind(entry.filename || entry.destination || entry.path));
     ref.kind.textContent = KIND_TEXT[kind] || kind || '—';
     const status = item.status || item.final_status || '';
     ref.status.textContent = STATUS_TEXT[status] || status || '待预览';
@@ -197,6 +197,7 @@
 
   function renderSources() {
     clear(sourceList);
+    clear($('attachment-list'));
     rowRefs.clear();
     for (const entry of state.sources) {
       const article = el('article', 'source-item');
@@ -238,6 +239,10 @@
       destinationInput.spellcheck = false;
       destinationInput.value = entry.destination || '';
       destinationInput.placeholder = '留空按目录规则生成';
+      if (entry.role === 'attachment') {
+        destinationInput.disabled = true;
+        destinationInput.placeholder = '自动保存到本次需求目录的 attachments/';
+      }
       destinationInput.addEventListener('input', () => {
         entry.destination = destinationInput.value;
         invalidatePreview();
@@ -248,7 +253,7 @@
 
       const notes = el('p', 'source-notes');
       article.append(head, fields, notes);
-      sourceList.appendChild(article);
+      (entry.role === 'attachment' ? $('attachment-list') : sourceList).appendChild(article);
       rowRefs.set(entry.id, { kind: kindBadge, status: statusBadge, notes });
       refreshEntry(entry);
     }
@@ -257,13 +262,13 @@
     updateControls();
   }
 
-  function addPaths(paths) {
+  function addPaths(paths, role = 'source') {
     let added = 0;
     for (const path of paths) {
       if (typeof path !== 'string' || !path.trim()) continue;
       state.sources.push({
         id: `src-${state.nextSourceId}`, number: state.nextSourceId++, kind: 'path',
-        path: path.trim(), text: '', filename: '', destination: '', preview: null,
+        path: path.trim(), role, text: '', filename: '', destination: '', preview: null,
       });
       added++;
     }
@@ -284,11 +289,11 @@
     return true;
   }
 
-  function buildRequest() {
+  function buildRequest(empty = false) {
     if (!state.root.trim()) throw new Error('请先选择或输入项目目录。');
-    if (!state.sources.length) throw new Error('请先添加至少一个来源。');
-    const sources = state.sources.map(entry => {
+    const sources = (empty ? [] : state.sources).map(entry => {
       const spec = entry.kind === 'path' ? { path: entry.path } : { text: entry.text };
+      spec.role = entry.role || 'source';
       if (entry.filename.trim()) spec.filename = entry.filename.trim();
       if (entry.destination.trim()) spec.destination = entry.destination.trim();
       return spec;
@@ -302,6 +307,7 @@
       cls_layout: state.clsLayout,
       requirement: { ...state.requirement },
       sources,
+      work_package: true,
     };
   }
 
@@ -316,6 +322,7 @@
     let text = `预览完成：${parts.join('，')}。`;
     if (summary.exists) text += ` 同名文件将按“${conflictSelect.value === 'backup-replace' ? '备份后替换' : '默认跳过'}”处理。`;
     if (!plan.root_exists) text += ' 项目目录将在导入时创建。';
+    if (plan.work_package?.enabled) text += ` 需求目录：${plan.work_package.relative_dir}，包含阅读入口和修改说明。`;
     if ((summary.pending || 0) + (summary.invalid || 0) + (summary.conflict || 0) > 0) {
       text += ' 需要先修正待补充/无效/冲突项并重新预览，整批导入会被阻止。';
     }
@@ -331,7 +338,7 @@
       refreshEntry(state.sources[index]);
     }
     const summary = plan.summary || {};
-    state.previewBlocked = (summary.pending || 0) + (summary.invalid || 0) + (summary.conflict || 0) > 0;
+    state.previewBlocked = Boolean(plan.work_package?.exists) || (summary.pending || 0) + (summary.invalid || 0) + (summary.conflict || 0) > 0;
     setSummary(planSummaryText(plan), state.previewBlocked ? 'warn' : 'ok');
     if (!state.projectName.trim() && plan.project_name) {
       state.projectName = plan.project_name;
@@ -380,6 +387,10 @@
     addResultRow('状态', payload?.status || '—');
     if (payload?.batch_id) addResultRow('批次', payload.batch_id, { mono: true });
     if (payload?.batch_dir) addResultRow('批次目录', payload.batch_dir, { mono: true });
+    if (ok && payload?.work_package?.dir) {
+      addResultRow('需求目录', payload.work_package.dir, { mono: true });
+      addResultRow('交给 AI 的提示词', `请读取“${payload.work_package.dir}”中的 README.md、修改说明.md 和 attachments 当前全部材料，结合项目源码，开始实现需求并验证。`, { mono: true });
+    }
     const summary = payload?.summary || {};
     const counts = Object.entries(summary).filter(([, value]) => typeof value === 'number' && value > 0)
       .map(([key, value]) => `${STATUS_TEXT[key] || key} ${value}`);
@@ -624,6 +635,38 @@
 
   previewButton.addEventListener('click', runPreview);
   importButton.addEventListener('click', runImport);
+
+  async function collectAttachments(mode) {
+    if (state.busy) return;
+    state.busy = true;
+    updateControls();
+    try {
+      const value = await hostCall(mode === 'files' ? 'panel_choose_files' : mode === 'screenshot' ? 'panel_screenshot' : 'panel_clipboard', mode === 'files' ? { initial: state.root.trim(), purpose: 'attachment' } : {});
+      const paths = mode === 'files' ? value.paths : mode === 'screenshot' ? (value.path ? [value.path] : []) : value.files;
+      if (paths?.length) setStatus(`已收集 ${addPaths(paths, 'attachment')} 个需求附件。`);
+      else setStatus(value.note || '未收集到附件。请复制文件、复制截图或选择已保存的文件。');
+    } catch (error) { setStatus(error.message, true); }
+    finally { state.busy = false; updateControls(); }
+  }
+  $('choose-attachments').addEventListener('click', () => collectAttachments('files'));
+  $('attachment-clipboard').addEventListener('click', () => collectAttachments('clipboard'));
+  $('capture-screenshot').addEventListener('click', () => collectAttachments('screenshot'));
+  $('create-empty').addEventListener('click', async () => {
+    if (state.busy) return;
+    let request;
+    try { request = buildRequest(true); } catch (error) { setStatus(error.message, true); return; }
+    invalidatePreview();
+    state.busy = true;
+    updateControls();
+    try {
+      const preview = await hostCall('panel_preview', request);
+      const payload = await hostCall('panel_import', { preview_id: preview.preview_id, conflict: 'skip' });
+      showImportResult(payload);
+      setStatus(payload.ok ? '空白需求目录已创建，可自行放入材料；当前清单尚未导入。' : '需求目录创建失败。', !payload.ok);
+      void saveSettings();
+    } catch (error) { setStatus(error.message, true); }
+    finally { state.busy = false; updateControls(); }
+  });
 
   async function main() {
     setConnection('', '连接中');

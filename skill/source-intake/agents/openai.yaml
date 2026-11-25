@@ -1,4 +1,4 @@
 interface:
   display_name: "源码需求导入"
-  short_description: "把复制的源码按项目层级导入，保留原始版本并关联需求编号"
-  default_prompt: "使用 $source-intake 将本次提供的源码导入用户指定项目，保留原始版本并记录需求编号。"
+  short_description: "整理源码、截图和文档，保留需求与补充修改说明"
+  default_prompt: "使用 $source-intake 将源码或需求材料导入指定目录，保存原始版本、需求信息和补充修改说明。"

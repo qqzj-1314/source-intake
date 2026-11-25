@@ -1,6 +1,6 @@
 {
   "name": "source-intake-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Codex 内嵌源码导入面板：复用 source-intake Python 内核，预览后导入并关联需求编号。",
