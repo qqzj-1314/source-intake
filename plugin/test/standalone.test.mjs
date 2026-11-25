@@ -15,7 +15,8 @@ const run = promisify(execFile);
 const project = fileURLToPath(new URL('../../', import.meta.url));
 
 test('release runs without any development node_modules and refuses stale or damaged bundles', async t => {
-  const temp = await mkdtemp(join(tmpdir(), 'source-intake-no-dependencies-'));
+  // macOS exposes the same temporary directory through /var and /private/var.
+  const temp = await realpath(await mkdtemp(join(tmpdir(), 'source-intake-no-dependencies-')));
   let client;
   t.after(async () => {
     await client?.close().catch(() => {});
