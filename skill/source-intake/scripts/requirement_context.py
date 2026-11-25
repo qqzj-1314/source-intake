@@ -9,6 +9,8 @@ import json
 import os
 import stat
 import sys
+from itertools import islice
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,10 @@ SCHEMA_VERSION = 1
 MAX_BODY_BYTES = 1024 * 1024
 MAX_ATTACHMENTS = 200
 MAX_HASH_BYTES = 64 * 1024 * 1024
+MAX_SCAN_ENTRIES = 4000
+MAX_SCAN_DIRS = 256
+MAX_SCAN_DEPTH = 32
+MAX_TOTAL_HASH_BYTES = 256 * 1024 * 1024
 README_NAME = "README.md"
 PROMPT_NAME = "修改说明.md"
 REQUIREMENT_NAME = "requirement.json"
@@ -146,17 +152,40 @@ def _kind_for(name: str) -> str:
 
 def _scan_attachments(root: Path, attachments: Path, warnings: list[str]) -> list[tuple[Path, str, int]]:
     found: list[tuple[Path, str, int]] = []
+    pending: deque[tuple[Path, str, int]] = deque([(attachments, "", 0)])
+    entries_seen = 0
+    dirs_scanned = 0
+    entries_exhausted = False
+    dirs_exhausted = False
+    skipped_deep = 0
 
-    def walk(directory: Path) -> None:
+    while pending:
+        if entries_seen >= MAX_SCAN_ENTRIES:
+            entries_exhausted = True
+            break
+        if dirs_scanned >= MAX_SCAN_DIRS:
+            dirs_exhausted = True
+            break
+        directory, relative_dir, depth = pending.popleft()
+        dirs_scanned += 1
+        label = f"{ATTACHMENTS_DIR}/{relative_dir}" if relative_dir else ATTACHMENTS_DIR
         try:
             with os.scandir(directory) as scan:
-                entries = sorted(scan, key=lambda item: (item.name.casefold(), item.name))
+                remaining_entries = MAX_SCAN_ENTRIES - entries_seen
+                entries = list(islice(scan, remaining_entries))
+                if len(entries) == remaining_entries:
+                    entries_exhausted = True
+                entries.sort(key=lambda item: (item.name.casefold(), item.name))
         except OSError as exc:
-            warnings.append(f"无法扫描附件目录 {directory.relative_to(root).as_posix()}：{exc}")
-            return
+            warnings.append(f"无法扫描附件目录 {label}：{exc}")
+            continue
         for entry in entries:
+            if entries_seen >= MAX_SCAN_ENTRIES:
+                entries_exhausted = True
+                break
+            entries_seen += 1
             path = Path(entry.path)
-            relative = path.relative_to(attachments).as_posix()
+            relative = f"{relative_dir}/{entry.name}" if relative_dir else entry.name
             display = f"{ATTACHMENTS_DIR}/{relative}"
             kind, info, error = _inspect(path)
             if kind == "link":
@@ -169,7 +198,11 @@ def _scan_attachments(root: Path, attachments: Path, warnings: list[str]) -> lis
                 warnings.append(f"附件在扫描时消失：{display}")
                 continue
             if kind == "directory":
-                walk(path)
+                child_depth = depth + 1
+                if child_depth > MAX_SCAN_DEPTH:
+                    skipped_deep += 1
+                    continue
+                pending.append((path, relative, child_depth))
                 continue
             if kind != "file":
                 warnings.append(f"跳过非普通文件：{display}")
@@ -179,34 +212,60 @@ def _scan_attachments(root: Path, attachments: Path, warnings: list[str]) -> lis
                 continue
             assert info is not None
             found.append((path, relative, int(info.st_size)))
+        if entries_exhausted:
+            break
 
-    walk(attachments)
+    if skipped_deep:
+        warnings.append(
+            f"附件目录深度超过上限 {MAX_SCAN_DEPTH}，已跳过 {skipped_deep} 个过深目录"
+        )
+    if entries_exhausted:
+        warnings.append(f"附件扫描条目达到上限 {MAX_SCAN_ENTRIES}，已停止继续扫描")
+    if dirs_exhausted:
+        warnings.append(f"附件扫描目录达到上限 {MAX_SCAN_DIRS}，已停止继续扫描")
     found.sort(key=lambda item: (item[1].casefold(), item[1]))
     return found
 
 
-def _sha256_limited(path: Path, relative: str, size: int, warnings: list[str]) -> str | None:
+def _sha256_limited(
+    path: Path, relative: str, size: int, warnings: list[str], remaining: int,
+) -> tuple[str | None, int]:
     display = f"{ATTACHMENTS_DIR}/{relative}"
     if size > MAX_HASH_BYTES:
         warnings.append(f"附件超过 64 MiB，未计算 sha256：{display}")
-        return None
+        return None, 0
+    if remaining <= 0:
+        warnings.append(f"附件哈希总预算 {MAX_TOTAL_HASH_BYTES} 字节已用完，未计算 sha256：{display}")
+        return None, 0
+    if size > remaining:
+        warnings.append(f"附件哈希总预算剩余 {remaining} 字节，不足以计算 sha256：{display}")
+        return None, 0
     digest = hashlib.sha256()
     total = 0
     try:
         with open(path, "rb") as handle:
-            while True:
-                chunk = handle.read(1024 * 1024)
+            current_size = os.fstat(handle.fileno()).st_size
+            if current_size > MAX_HASH_BYTES:
+                warnings.append(f"附件超过 64 MiB，未计算 sha256：{display}")
+                return None, 0
+            if current_size > remaining:
+                warnings.append(
+                    f"附件哈希总预算剩余 {remaining} 字节，不足以计算 sha256：{display}"
+                )
+                return None, 0
+            while total < current_size:
+                chunk = handle.read(min(1024 * 1024, current_size - total))
                 if not chunk:
                     break
                 total += len(chunk)
-                if total > MAX_HASH_BYTES:
-                    warnings.append(f"附件读取超过 64 MiB，未计算 sha256：{display}")
-                    return None
                 digest.update(chunk)
+            if total != current_size or os.fstat(handle.fileno()).st_size != current_size:
+                warnings.append(f"附件内容在读取期间变化，未计算 sha256：{display}")
+                return None, total
     except OSError as exc:
         warnings.append(f"无法读取附件 {display}：{exc}")
-        return None
-    return digest.hexdigest()
+        return None, total
+    return digest.hexdigest(), total
 
 
 def _attachment_context(root: Path, warnings: list[str]) -> list[dict[str, Any]]:
@@ -234,12 +293,15 @@ def _attachment_context(root: Path, warnings: list[str]) -> list[dict[str, Any]]
         )
         candidates = candidates[:MAX_ATTACHMENTS]
     attachments = []
+    remaining = MAX_TOTAL_HASH_BYTES
     for path, relative, size in candidates:
+        digest, spent = _sha256_limited(path, relative, size, warnings, remaining)
+        remaining = max(0, remaining - spent)
         attachments.append({
             "name": path.name,
             "relative_path": f"{ATTACHMENTS_DIR}/{relative}",
             "size": size,
-            "sha256": _sha256_limited(path, relative, size, warnings),
+            "sha256": digest,
             "kind": _kind_for(path.name),
         })
     return attachments

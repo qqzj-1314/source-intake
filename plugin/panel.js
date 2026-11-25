@@ -68,7 +68,7 @@
   const statusLine = $('status');
   const previewButton = $('preview');
   const importButton = $('import');
-  const buttons = ['choose-directory', 'collect-clipboard', 'choose-files', 'paste-code', 'add-paste', 'cancel-paste', 'preview', 'create-empty', 'choose-attachments', 'attachment-clipboard', 'capture-screenshot']
+  const buttons = ['choose-directory', 'collect-clipboard', 'choose-files', 'paste-code', 'add-paste', 'cancel-paste', 'preview', 'create-empty', 'choose-attachments', 'attachment-clipboard', 'capture-screenshot', 'search-requirements']
     .map(id => $(id));
 
   function setConnection(kind, text) {
@@ -488,6 +488,7 @@
 
   function applyDirectory(root, { rememberRule = true } = {}) {
     if (!root) return;
+    clear($('requirement-results'));
     state.root = root;
     rootInput.value = root;
     if (!state.projectName.trim()) {
@@ -504,6 +505,7 @@
 
   rootInput.addEventListener('input', () => {
     state.root = rootInput.value;
+    clear($('requirement-results'));
     recentSelect.value = '';
     invalidatePreview();
   });
@@ -651,6 +653,33 @@
   $('choose-attachments').addEventListener('click', () => collectAttachments('files'));
   $('attachment-clipboard').addEventListener('click', () => collectAttachments('clipboard'));
   $('capture-screenshot').addEventListener('click', () => collectAttachments('screenshot'));
+  $('search-requirements').addEventListener('click', async () => {
+    if (state.busy) return;
+    if (!state.root.trim()) { setStatus('请先选择或输入项目目录。', true); return; }
+    state.busy = true; updateControls();
+    const output = $('requirement-results');
+    clear(output);
+    const searchedRoot = state.root.trim();
+    const searchedQuery = $('requirement-search').value;
+    try {
+      const response = await hostCall('panel_list_requirements', { root: searchedRoot, query: searchedQuery });
+      if (searchedRoot !== state.root.trim() || searchedQuery !== $('requirement-search').value) {
+        setStatus('项目目录或查询已变化，请重新查找。'); return;
+      }
+      if (!response.items?.length) output.appendChild(el('p', 'hint', '没有匹配的需求目录。'));
+      for (const item of response.items || []) {
+        const row = el('article', 'source-item');
+        row.appendChild(el('strong', '', `${item.id || '未编号'} · ${item.title || '未填写标题'}`));
+        row.appendChild(el('p', 'source-notes', item.directory));
+        row.appendChild(el('p', 'hint', `请读取“${item.directory}”中的 README.md、修改说明.md 与 attachments 当前材料，结合项目源码开始处理需求。`));
+        if (item.warnings?.length) row.appendChild(el('p', 'source-notes error', item.warnings.join('；')));
+        output.appendChild(row);
+      }
+      for (const warning of response.warnings || []) output.appendChild(el('p', 'source-notes', warning));
+      setStatus(`找到 ${response.matches || 0} 个需求；材料归档状态不代表业务需求已实现。`);
+    } catch (error) { setStatus(`查找需求失败：${error.message}`, true); }
+    finally { state.busy = false; updateControls(); }
+  });
   $('create-empty').addEventListener('click', async () => {
     if (state.busy) return;
     let request;

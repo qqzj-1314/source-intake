@@ -30,7 +30,7 @@ test('universal MCP is independent of GUI and supports cross-agent requirement h
     return response.structuredContent;
   }
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['intake_apply', 'intake_context', 'intake_history', 'intake_plan', 'intake_status']);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['intake_apply', 'intake_context', 'intake_history', 'intake_list_requirements', 'intake_plan', 'intake_status']);
   assert.ok(tools.every(tool => !tool._meta?.ui));
   const status = await call('intake_status', {});
   assert.equal(status.ok, true);
@@ -58,6 +58,10 @@ test('universal MCP is independent of GUI and supports cross-agent requirement h
   assert.equal(context.prompt, prompt);
   assert.equal(context.requirement.id, 'UNIVERSAL-QA');
   assert.equal(context.attachments.length, 2);
+  const indexed = await call('intake_list_requirements', { root, query: 'universal-qa' });
+  assert.equal(indexed.matches, 1);
+  assert.equal(indexed.items[0].directory, imported.work_package.dir);
+  assert.equal((await call('intake_list_requirements', { root, query: 'not-a-match' })).matches, 0);
   const history = await call('intake_history', { root });
   assert.ok(JSON.stringify(history).includes(imported.batch_id));
   const prompts = await client.listPrompts();

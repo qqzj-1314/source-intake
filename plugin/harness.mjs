@@ -116,7 +116,7 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
   await client.connect(clientTransport);
 
   const allowedTools = new Set(['open_panel', 'panel_state', 'panel_choose_directory', 'panel_choose_files',
-    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot']);
+    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot', 'panel_list_requirements']);
   const screenshotPaths = new Set();
 
   async function restrictedCall(name, args) {
@@ -137,7 +137,7 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
         if (!within(candidate, realRoot) && !screenshotPaths.has(candidate)) throw new Error('Harness 只允许导入临时演示来源。');
       }
     }
-    if (name === 'panel_save_settings' && !within(args.root, root)) {
+    if (['panel_save_settings', 'panel_list_requirements'].includes(name) && !within(args.root, root)) {
       throw new Error('Harness 只允许保存临时演示目录。');
     }
     return client.callTool({ name, arguments: args });

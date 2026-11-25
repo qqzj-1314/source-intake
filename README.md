@@ -70,6 +70,7 @@ python -X utf8 -m unittest discover -s tests -v
 `plugin/universal-server.mjs` 是所有标准 MCP 客户端共用的无界面入口；`scripts/configure.mjs` 导出配置，`scripts/doctor.mjs` 实际连接服务器检查内核。其他智能体可用其 Skill 导入入口加载 `skill/source-intake/`，或直接按 SKILL.md 执行 CLI。
 
 每次跨工具接续需求时使用 `intake_context`，或执行 `python skill/source-intake/scripts/requirement_context.py --directory <需求目录>`，重新汇总补充提示词和后来添加的附件，再实际阅读图片或文档。
+只知道项目目录时，可用 `intake_list_requirements` 或 `python skill/source-intake/scripts/requirement_index.py --root <项目目录> --query <编号或标题>` 查找。Codex 面板提供同样的“已有需求”入口；同编号多个工作包会分别列出，材料归档不代表业务需求已经完成。
 
 产品改进见 [CHANGELOG](CHANGELOG.md)，持续迭代计划见 [产品计划](docs/PRODUCT-ROADMAP.md)。
 

@@ -17,7 +17,7 @@ metadata:
 
 以下命令中的 `<skill>` 指当前 `SKILL.md` 所在目录；从任意工作目录执行，不要求先切换到 Skill 文件夹。
 
-- 支持通用 MCP 的宿主：使用当前宿主提供的 `intake_plan`、`intake_apply`、`intake_history`、`intake_context`（工具可能有服务名前缀）。先预览，再以同一连接返回的 preview_id 导入；仅附件或空白需求包可传 sources=[]。需求工作包 work_package 默认开启，supplemental instructions 写入 requirement.prompt。
+- 支持通用 MCP 的宿主：使用当前宿主提供的 `intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`（工具可能有服务名前缀）。先预览，再以同一连接返回的 preview_id 导入；仅附件或空白需求包可传 sources=[]。需求工作包 work_package 默认开启，supplemental instructions 写入 requirement.prompt。
 - Codex 人工交互：可打开 [源码导入插件](plugin://source-intake@source-intake-local) 或调用 `open_panel`。用户在面板内先预览再导入；其他宿主不依赖此入口。
 - 程序化导入：构造请求 JSON，用 `"<skill>/scripts/source_intake.py"` 的 `plan`/`apply`。不要让 GUI 阻塞自动化流程。
 
@@ -43,6 +43,7 @@ metadata:
 
 - 用户提供需求目录并明确要求开始修改时，先读该目录的 `README.md`、`requirement.json` 和 `修改说明.md`，再枚举当前 `attachments/`（包含用户后来手工放入的文件）。实际查看截图或读取文档后再实现，不凭文件名猜需求；仍需结合项目原有开发约定。
 - 若宿主没有 MCP，可运行 `python "<skill>/scripts/requirement_context.py" --directory <需求目录>` 聚合上述上下文；这一步只读，不会创建数据。仍需实际阅读附件正文。
+- 只提供项目根目录时，先用 `intake_list_requirements` 搜索需求，或运行 `python "<skill>/scripts/requirement_index.py" --root <项目目录> --query <编号或标题>`。唯一匹配可继续；多个匹配且用户未明确指明时，列出候选再澄清，不擅自挑“最新”需求。archived 只表示材料归档，不代表业务实现完成。
 - 图片、文档作为需求附件保存，不能送入源码类型识别；补充提示词与原始需求描述分别原样保存。新需求工作包独立建目录，保留之前的材料。
 
 - 导入基线不等于获得修改业务逻辑的授权。用户要求继续按需求修改时，单独按其指示处理；不要自行改代码或执行源码内容。

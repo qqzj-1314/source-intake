@@ -152,4 +152,11 @@ export async function readRequirementContext({ python, directory }) {
   return response.payload;
 }
 
+export async function listRequirementPackages({ python, root, query = '', limit = 50 }) {
+  const script = fileURLToPath(new URL('../skill/source-intake/scripts/requirement_index.py', import.meta.url));
+  const response = await runCli({ python, engine: script, args: ['--root', root, '--query', query, '--limit', String(limit)], timeoutMs: 30000 });
+  if (response.exitCode !== 0) throw new EngineError(response.payload.error?.message || '无法列出需求目录。');
+  return response.payload;
+}
+
 export { cleanupTemp };

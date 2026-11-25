@@ -9,7 +9,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { previewSchema, importSchema, buildRequest } from './contracts.mjs';
 import { PreviewCache } from './preview-cache.mjs';
-import { DEFAULT_ENGINE, detectPython, planRequest, applyPlan, readHistory, readRequirementContext } from './engine.mjs';
+import { DEFAULT_ENGINE, detectPython, planRequest, applyPlan, readHistory, readRequirementContext, listRequirementPackages } from './engine.mjs';
 
 const result = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value });
 const failure = error => ({ isError: true, content: [{ type: 'text', text: error.message || '操作失败' }] });
@@ -30,7 +30,7 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
     await access(enginePath, constants.R_OK);
     await planRequest({ python: executable, engine: enginePath, request: { root: join(tmpdir(), 'source-intake-healthcheck'), sources: [] } });
     return { ok: true, version, transport: 'stdio', platform: process.platform,
-      capabilities: ['plan', 'apply', 'history', 'requirement-context'],
+      capabilities: ['plan', 'apply', 'history', 'requirement-context', 'requirement-index'],
       python: executable, engine: enginePath, ui_required: false, clipboard_access: false };
   }));
 
@@ -69,11 +69,18 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
     inputSchema: z.object({ directory: z.string().trim().min(1).max(4096) }).strict(), annotations: readonly,
   }, guard(({ directory }) => readRequirementContext({ python: executable, directory })));
 
+  server.registerTool('intake_list_requirements', {
+    title: '按项目查找已有需求',
+    description: '只读搜索项目requirements下的需求编号、标题或目录名，返回每个独立需求目录。用户只给项目根目录时先使用此工具，再调用intake_context读取准确需求。多个匹配不能擅自选择；返回archived仅表示材料已归档，不表示业务需求已实现。',
+    inputSchema: z.object({ root: z.string().trim().min(1).max(4096), query: z.string().max(500).default(''), limit: z.number().int().min(1).max(100).default(50) }).strict(),
+    annotations: readonly,
+  }, guard(args => listRequirementPackages({ python: executable, ...args })));
+
   server.registerPrompt('implement_requirement', {
     title: '开始实现已归档需求', description: '从需求目录接续修改任务，适用于不同编程智能体。',
     argsSchema: { directory: z.string().min(1).max(4096) },
   }, ({ directory }) => ({ messages: [{ role: 'user', content: { type: 'text', text:
-    `请读取需求目录 ${JSON.stringify(directory)}。先调用 intake_context，实际查看全部相关截图/文档，结合修改说明和项目开发约定，再实现需求、运行适当验证并报告变化。遇到材料缺失或真实冲突应说明；不要仅凭文件名推测，也不要把材料归档误报成需求已实现。` } }] }));
+    `请处理目录 ${JSON.stringify(directory)} 下的需求。若给的是项目根目录，先调用 intake_list_requirements 查找；只有一个匹配可继续，多个匹配且用户未指明时列出供选择。确定需求目录后调用 intake_context，实际查看全部相关截图/文档，结合修改说明和项目开发约定，再实现需求、运行适当验证并报告变化。遇到材料缺失或真实冲突应说明；不要仅凭文件名推测，也不要把材料归档误报成需求已实现。` } }] }));
   return server;
 }
 

@@ -9,7 +9,7 @@ import { resolve } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { DEFAULT_ENGINE, EngineError, applyPlan, detectPython, planRequest } from './engine.mjs';
+import { DEFAULT_ENGINE, EngineError, applyPlan, detectPython, planRequest, listRequirementPackages } from './engine.mjs';
 import { NativeError, createNativeBridge } from './native.mjs';
 import { PreviewCache, PreviewError } from './preview-cache.mjs';
 import { SettingsStore } from './settings.mjs';
@@ -141,6 +141,16 @@ export async function createServer({
         platform: process.platform,
       });
     } catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('panel_list_requirements', {
+    title: '浏览已有需求', description: '只读按项目目录搜索已有需求工作包。App-only。',
+    inputSchema: z.object({ root: z.string().trim().min(1).max(4096), query: z.string().max(500).default('') }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
+  }, async ({ root, query }) => {
+    try { return result(await listRequirementPackages({ python: pythonPath, root, query, limit: 30 })); }
+    catch (error) { return toolError(error); }
   });
 
   server.registerTool('panel_choose_directory', {

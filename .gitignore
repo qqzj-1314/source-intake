@@ -12,6 +12,7 @@
 !/CHANGELOG.md
 !/.claude-plugin/
 !/integrations/
+!/.github/
 **/node_modules/
 **/.local/
 **/__pycache__/

@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "skill" / "source-intake" / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
@@ -36,6 +37,17 @@ class RequirementContextTests(unittest.TestCase):
             path.write_bytes(data.encode("utf-8"))
         else:
             path.write_bytes(data)
+        return path
+
+    def make_package(self, name: str) -> Path:
+        package = self.tmp / name
+        (package / "attachments").mkdir(parents=True)
+        return package
+
+    def write_in(self, package: Path, relative: str, data: bytes | str = b"x") -> Path:
+        path = package / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data.encode("utf-8") if isinstance(data, str) else data)
         return path
 
     def cli(self, directory: Path | None = None) -> subprocess.CompletedProcess:
@@ -199,6 +211,152 @@ class RequirementContextTests(unittest.TestCase):
         self.assertIn("已截断", joined)
         self.assertIn("64 MiB", joined)
         self.assertIn("上限 200", joined)
+
+    def test_scan_entry_limit_stops_after_bounded_entries(self):
+        package = self.make_package("条目上限包")
+        for index in range(6):
+            self.write_in(package, f"attachments/f{index}.txt")
+
+        with mock.patch.object(rc, "MAX_SCAN_ENTRIES", 3):
+            context = rc.read_context(package)
+
+        self.assertEqual(
+            [item["relative_path"] for item in context["attachments"]],
+            ["attachments/f0.txt", "attachments/f1.txt", "attachments/f2.txt"],
+        )
+        joined = "\n".join(context["warnings"])
+        self.assertIn("扫描条目达到上限 3", joined)
+
+    def test_scan_does_not_enumerate_the_whole_directory_before_applying_limit(self):
+        package = self.make_package("枚举上限包")
+        self.write_in(package, "attachments/first.txt")
+        original_scandir = rc.os.scandir
+        observed = []
+
+        class LimitedScan:
+            def __enter__(self):
+                self.inner = original_scandir(package / "attachments")
+                self.entry = next(self.inner)
+                return self
+            def __iter__(self):
+                return self
+            def __next__(self):
+                observed.append(1)
+                if len(observed) > 3:
+                    raise AssertionError("enumerated beyond the configured budget")
+                return self.entry
+            def __exit__(self, *args):
+                self.inner.close()
+
+        with mock.patch.object(rc.os, 'scandir', return_value=LimitedScan()), mock.patch.object(rc, 'MAX_SCAN_ENTRIES', 3):
+            warnings = []
+            rc._scan_attachments(package, package / 'attachments', warnings)
+        self.assertEqual(len(observed), 3)
+        self.assertTrue(any('扫描条目达到上限' in message for message in warnings))
+
+    def test_scan_depth_and_directory_limits_warn_and_keep_shallow_material(self):
+        deep_package = self.make_package("深度上限包")
+        self.write_in(deep_package, "attachments/顶层.txt", b"top")
+        self.write_in(deep_package, "attachments/一层/两层/浅文件.txt", b"shallow")
+        self.write_in(deep_package, "attachments/一层/两层/三层/深层.txt", b"deep")
+
+        with mock.patch.object(rc, "MAX_SCAN_DEPTH", 2):
+            deep_context = rc.read_context(deep_package)
+
+        deep_paths = [item["relative_path"] for item in deep_context["attachments"]]
+        self.assertIn("attachments/顶层.txt", deep_paths)
+        self.assertIn("attachments/一层/两层/浅文件.txt", deep_paths)
+        self.assertNotIn("attachments/一层/两层/三层/深层.txt", deep_paths)
+        joined = "\n".join(deep_context["warnings"])
+        self.assertIn("深度超过上限 2", joined)
+        self.assertIn("已跳过 1 个过深目录", joined)
+
+        dir_package = self.make_package("目录上限包")
+        self.write_in(dir_package, "attachments/root.txt")
+        for name in ("a", "b", "c"):
+            self.write_in(dir_package, f"attachments/{name}/{name}.txt")
+
+        with mock.patch.object(rc, "MAX_SCAN_DIRS", 2):
+            dir_context = rc.read_context(dir_package)
+
+        dir_paths = [item["relative_path"] for item in dir_context["attachments"]]
+        self.assertIn("attachments/root.txt", dir_paths)
+        self.assertIn("attachments/a/a.txt", dir_paths)
+        self.assertNotIn("attachments/b/b.txt", dir_paths)
+        self.assertNotIn("attachments/c/c.txt", dir_paths)
+        self.assertIn("扫描目录达到上限 2", "\n".join(dir_context["warnings"]))
+
+    def test_hash_total_budget_counts_actual_reads_and_keeps_metadata(self):
+        package = self.make_package("哈希预算包")
+        self.write_in(package, "attachments/a.bin", b"a" * 6)
+        self.write_in(package, "attachments/b.bin", b"b" * 6)
+        self.write_in(package, "attachments/c.bin", b"c" * 4)
+
+        with mock.patch.object(rc, "MAX_TOTAL_HASH_BYTES", 10):
+            context = rc.read_context(package)
+
+        by_name = {item["name"]: item for item in context["attachments"]}
+        self.assertEqual(set(by_name), {"a.bin", "b.bin", "c.bin"})
+        self.assertEqual(by_name["a.bin"]["sha256"], hashlib.sha256(b"a" * 6).hexdigest())
+        self.assertIsNone(by_name["b.bin"]["sha256"])
+        self.assertEqual(by_name["b.bin"]["size"], 6)
+        self.assertEqual(by_name["c.bin"]["sha256"], hashlib.sha256(b"c" * 4).hexdigest())
+        joined = "\n".join(context["warnings"])
+        self.assertIn("哈希总预算剩余 4 字节", joined)
+        self.assertIn("b.bin", joined)
+
+        failing_path = package / "attachments" / "失败读取.bin"
+        failing_path.write_bytes(b"12345678")
+        real_open = open
+
+        class FailingHandle:
+            def __init__(self) -> None:
+                self._handle = real_open(failing_path, "rb")
+                self._reads = 0
+
+            def fileno(self) -> int:
+                return self._handle.fileno()
+
+            def read(self, size: int) -> bytes:
+                if self._reads:
+                    raise OSError("模拟读取失败")
+                self._reads += 1
+                return self._handle.read(4)
+
+            def __enter__(self) -> "FailingHandle":
+                return self
+
+            def __exit__(self, *exc: object) -> bool:
+                self._handle.close()
+                return False
+
+        read_warnings: list[str] = []
+        with mock.patch("builtins.open", side_effect=lambda *args, **kwargs: FailingHandle()):
+            digest, spent = rc._sha256_limited(
+                failing_path, "失败读取.bin", 8, read_warnings, 10,
+            )
+        self.assertIsNone(digest)
+        self.assertEqual(spent, 4, "失败读取前已经读取的字节必须计入总预算")
+        self.assertTrue(any("无法读取附件" in warning for warning in read_warnings))
+
+    def test_normal_directory_attachment_order_is_stable_and_sorted(self):
+        package = self.make_package("稳定顺序包")
+        relatives = [
+            "attachments/b.txt",
+            "attachments/A.txt",
+            "attachments/子目录/z.txt",
+            "attachments/子目录/a.txt",
+        ]
+        for relative in relatives:
+            self.write_in(package, relative)
+
+        first = rc.read_context(package)
+        second = rc.read_context(package)
+        first_paths = [item["relative_path"] for item in first["attachments"]]
+        second_paths = [item["relative_path"] for item in second["attachments"]]
+        self.assertEqual(first_paths, second_paths)
+        self.assertEqual(first_paths, sorted(relatives, key=lambda path: (path.casefold(), path)))
+        self.assertFalse(any("扫描" in warning for warning in first["warnings"]))
 
 
 if __name__ == "__main__":

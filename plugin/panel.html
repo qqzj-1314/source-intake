@@ -160,6 +160,11 @@
         <label class="field" for="requirement-prompt" style="margin-top:14px"><span class="field-label">修改提示词 / 补充说明</span><textarea id="requirement-prompt" rows="5" spellcheck="false" placeholder="补充具体修改方式、约束、验收标准；按原文保存为修改说明.md"></textarea></label>
         <div class="toolbar"><button id="create-empty" class="btn" type="button">创建空白需求目录</button><span class="hint">保存当前需求与补充说明，创建 attachments 空目录；可自行放入材料。</span></div>
       </section>
+      <section class="card" aria-label="已有需求">
+        <div class="card-head"><h2>已有需求</h2><p class="hint">在当前项目中按编号或标题查找，获取交给 AI 继续处理的目录。</p></div>
+        <div class="toolbar"><input id="requirement-search" aria-label="需求搜索" type="text" maxlength="500" placeholder="编号、标题或目录名"><button id="search-requirements" class="btn" type="button">查找已有需求</button></div>
+        <div id="requirement-results" class="sources" aria-live="polite"></div>
+      </section>
       <section class="card" aria-label="目录规则">
         <div class="card-head"><h2>目录规则</h2><p class="hint">hisui 使用项目默认层级；flat 平铺到根目录。四类目录均可修改。</p></div>
         <div class="grid two">

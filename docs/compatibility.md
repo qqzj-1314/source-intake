@@ -15,7 +15,7 @@ node scripts/doctor.mjs --config plugin/.local/clients/generic.json
 
 可用 `--python <解释器绝对路径>` 指定 Python，`--output <目录>` 改输出目录。生成器只写导出文件，保留原客户端配置；目标文件内容不同则拒绝覆盖，显式 `--force` 才备份后重写。
 
-同一服务器提供 `intake_status`、`intake_plan`、`intake_apply`、`intake_history`、`intake_context`，以及 `implement_requirement` 提示词。
+同一服务器提供 `intake_status`、`intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`，以及 `implement_requirement` 提示词。
 智能体先预览，使用同一 MCP 连接返回的 preview_id 执行；令牌过期、使用过或来源变更后需要重新预览。
 已经有用户导入授权时可直接完成流程，无需人为增加重复确认。替换原文件须有对应用户授权。
 
