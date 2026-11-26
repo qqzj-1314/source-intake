@@ -19,6 +19,14 @@ build_skill = build_module.build_skill
 
 
 class SkillPackageTests(unittest.TestCase):
+    def test_portable_skill_preserves_license_bytes(self):
+        self.write("SKILL.md", self.skill_md())
+        license_bytes = b"MIT License\nCopyright (c) fixture\n"
+        self.write("LICENSE", license_bytes)
+        result = build_skill(self.source, self.output, "1.0.0")
+        with zipfile.ZipFile(result["skill"]) as archive:
+            self.assertEqual(archive.read("demo-skill/LICENSE"), license_bytes)
+
     def test_skill_artifact_never_overwrites_full_project_archive(self):
         self.write("SKILL.md", self.skill_md())
         self.output.mkdir(parents=True, exist_ok=True)

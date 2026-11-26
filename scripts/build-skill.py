@@ -116,6 +116,11 @@ def _collect(source: Path, output_root: Path) -> tuple[str, list[tuple[str, Path
         raise _error("SKILL.md 不能是符号链接或重解析点")
     frontmatter = _read_frontmatter(skill_md)
     files: list[tuple[str, Path]] = [("SKILL.md", skill_md)]
+    license_file = source / "LICENSE"
+    if license_file.exists() or license_file.is_symlink():
+        if _path_is_link(license_file) or not license_file.is_file():
+            raise _error("LICENSE 必须是普通文件，不能是链接")
+        files.append(("LICENSE", license_file))
     for dirname in PRODUCT_DIRS:
         base = source / dirname
         if not base.is_dir() or _path_is_link(base):

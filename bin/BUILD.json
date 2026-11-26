@@ -19,8 +19,8 @@
   "sources": {
     "plugin/contracts.mjs": "feb6af1917596729121cce70cb6ced467ef5716b597009a5060a34b64e1d8728",
     "plugin/engine.mjs": "3d60216ec17e327fc14825ef3db17dfb48c3f1821398d64b70ff2d4aabb9cd15",
-    "plugin/package-lock.json": "b3ae75bcac133a3ceddf9055058a468cbfa9f81c85b067de4af6ba205b4c3bfe",
-    "plugin/package.json": "8320b068aef426cbce2002057972b5e30c69f3e4093fcefc47156ca3a38377c6",
+    "plugin/package-lock.json": "80eb29054254d4a8f5da77828af939091115b691ebd2dca1aae212bbc5100406",
+    "plugin/package.json": "ef24f51b52f88679d9d71d894446c78055156f0cce95a3f1ecb171e945ed5908",
     "plugin/preview-cache.mjs": "c833b57181cc05e43f82f0bc4fd0d688c15ea81de4419921938e800408829d4c",
     "plugin/universal-server.mjs": "eed9bb6e8ebcb5a02dc4c4909f953f04799f458460a3bdf366dfcb907af2422d",
     "scripts/doctor.mjs": "83a29db344060de236aaa59acaa8f0e99300fdf27debf878aee88c891fdfce9c"

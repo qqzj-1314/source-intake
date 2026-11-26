@@ -4,6 +4,8 @@
 
 插件入口：`plugin://source-intake@source-intake-local`。面板嵌在 Codex 中，选择文件时使用系统对话框。
 
+本项目以 [MIT License](LICENSE) 开源。独立 Skill 包同样附带许可证；预编译运行时的第三方许可见 [THIRD_PARTY_NOTICES](bin/THIRD_PARTY_NOTICES.md)。参与开发见 [贡献说明](CONTRIBUTING.md)。
+
 ## 安装
 
 通用 MCP / Claude Code / Qoder / Trae / WorkBuddy：下载完整发行包并解压，准备 Node.js 22.19+ 和 Python 3.10+，无需先安装 npm 依赖：

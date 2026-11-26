@@ -39,7 +39,7 @@ Windows 终端粘贴 JSON 时须遵守当前 Shell 引号规则；也可让目�
 没有 MCP 的工具可导入 `skill/source-intake/`，按 SKILL.md 调用 Python CLI。
 Skill 安装目录和宿主自动发现规则不同；可使用其“导入 Skill”入口，不能假定所有软件都读取 `.codex/skills`。
 
-Claude 原生插件通过同一已编译入口启动；私有本地插件校验有公开目录许可/图标提示，本项目没有声明开源许可，也没有向公共市场发布。
+Claude 原生插件通过同一已编译入口启动。本项目采用 MIT 许可；GitHub 仓库开源与发布到各宿主的公共插件市场是两件事，目前尚未向公共插件市场发布。
 
 0.5.0 新增实际发行 ZIP 解压验证：不含 node_modules 的目录中，Qoder 原生模型调用返回 standalone 运行模式；Claude 原生插件加载 0.5.0 且 MCP connected，隔离会话仍无登录。三系统及 Python 3.10 CI、Skill-only CLI 流程详见 [0.5 验收记录](verification-0.5.md)。上述宿主历史记录保留，不推断未验证的 IDE 界面或模型调用。
 
