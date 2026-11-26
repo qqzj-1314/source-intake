@@ -21,6 +21,8 @@ node plugin/doctor-launch.mjs --config plugin/.local/clients/generic.json
 
 0.6.0 的 context.schema_version=2，原有材料字段保留，新增 handoff。先读取上下文取得材料指纹，再显式追加工作记录；独立文件不会覆盖原始提示词。工作记录为执行者自报，状态不等于用户验收；材料指纹不覆盖项目源码。用法及文件系统限制见 [交接说明](../skill/source-intake/references/handoff.md)。
 
+0.6 的 Qoder 原生交接、无依赖解压安装、Skill-only CLI 和四组 CI 结果见 [0.6 验收记录](verification-0.6.md)。
+
 ## 客户端入口
 
 | 客户端 | 安装/载入方式 | 当前验证 |
