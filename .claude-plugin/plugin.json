@@ -1,6 +1,6 @@
 {
   "name": "source-intake",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Import source files and requirement materials with previews, original snapshots and supplemental instructions.",
   "skills": [
     "./skill/"

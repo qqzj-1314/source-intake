@@ -79,6 +79,15 @@
     .paste-box{margin-top:14px;padding:14px;border:1px dashed var(--control);border-radius:var(--radius-control);background:var(--raised)}
     .paste-box textarea{min-height:170px}
     .paste-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+    .image-thumb{display:block;max-width:240px;max-height:140px;object-fit:contain;margin:10px 0;border:1px solid var(--border);background:var(--surface);cursor:zoom-in}
+    .content-dialog{width:min(920px,94vw);max-height:90vh;padding:20px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text)}
+    .content-dialog::backdrop{background:rgba(0,0,0,.4)}
+    .preview-heading{display:flex;align-items:center;gap:12px;justify-content:space-between}
+    .preview-heading h2{margin:0;font-size:16px;overflow-wrap:anywhere}
+    .content-code{max-height:65vh;overflow:auto;margin:12px 0 0;padding:14px;border:1px solid var(--rule);border-radius:6px;background:var(--raised);font:13px/1.6 var(--mono);white-space:pre;tab-size:4}
+    .image-scroll{max-height:65vh;overflow:auto;margin-top:12px;text-align:center;background:var(--raised);border:1px solid var(--rule);padding:12px}
+    .image-scroll img{max-width:100%;max-height:60vh;object-fit:contain;vertical-align:middle}
+    .image-scroll img.original{max-width:none;max-height:none}
     .summary{margin:14px 0 0;padding:10px 12px;background:var(--raised);border:1px solid var(--rule);border-left:2px solid var(--control);border-radius:var(--radius-control);color:var(--muted-strong);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
     .summary.error{border-left-color:var(--negative);color:var(--negative)}
     .summary.ok{border-left-color:var(--positive)}
@@ -183,21 +192,22 @@
         <div class="toolbar" style="margin-top:0">
           <button id="collect-clipboard" class="btn" type="button">收集剪贴板</button>
           <button id="choose-files" class="btn" type="button">选择文件…</button>
-          <button id="paste-code" class="btn" type="button">粘贴代码</button>
+          <button id="paste-code" class="btn" type="button">粘贴代码 / 图片</button>
           <span id="source-count" class="hint">0 项</span>
         </div>
         <div id="paste-box" class="paste-box" hidden>
           <div class="grid two">
             <label class="field" for="paste-filename"><span class="field-label">文件名（可选）</span><input id="paste-filename" type="text" spellcheck="false" autocomplete="off" placeholder="例如 demo.js"></label>
           </div>
-          <label class="field" for="paste-text" style="margin-top:10px"><span class="field-label">粘贴一段源码</span><textarea id="paste-text" rows="8" spellcheck="false" placeholder="一次收集一段源码，可保留最外层代码围栏"></textarea></label>
+          <label class="field" for="paste-text" style="margin-top:10px"><span class="field-label">粘贴代码或图片</span><textarea id="paste-text" rows="8" spellcheck="false" placeholder="代码粘贴后点“追加到清单”；图片可直接 Ctrl+V / ⌘V，会自动加入需求附件并显示缩略图。"></textarea></label>
+          <p class="hint">代码按原文保存；可连续粘贴不同截图，每次使用本次粘贴内容，不读取剪贴板历史。</p>
           <div class="paste-actions"><button id="cancel-paste" class="btn" type="button">取消</button><button id="add-paste" class="btn primary" type="button">追加到清单</button></div>
         </div>
         <div id="source-list" class="sources"></div>
-        <p id="source-empty" class="hint">尚未添加来源。剪贴板优先读取文件列表，其次读取文本。</p>
+        <p id="source-empty" class="hint">尚未添加来源。可选择文件，或在“粘贴代码 / 图片”中直接粘贴。</p>
       </section>
       <section class="card" aria-label="需求附件">
-        <div class="card-head"><h2>需求附件</h2><p class="hint">图片、Word、PDF 或其他文档，原样保存。也支持仅有附件的需求。</p></div>
+        <div class="card-head"><h2>需求附件</h2><p class="hint">图片、文档原样保存；也可在上方输入区直接粘贴截图。</p></div>
         <div class="toolbar"><button id="choose-attachments" class="btn" type="button">选择需求附件…</button><button id="attachment-clipboard" class="btn" type="button">收集复制的附件</button><button id="capture-screenshot" class="btn" type="button">收集剪贴板截图</button></div>
         <div id="attachment-list" class="sources"></div>
       </section>
@@ -217,6 +227,14 @@
     <footer class="app-footer">源码以纯文本显示和导入，不会在面板中执行。导入数据保存在项目内的 .source-intake；面板只记住最近目录与目录规则。</footer>
   </div>
 </main>
+<dialog id="content-preview" class="content-dialog" aria-labelledby="content-preview-title">
+  <div class="preview-heading"><h2 id="content-preview-title">内容预览</h2><button id="close-content-preview" class="btn small" type="button">关闭预览</button></div>
+  <p id="content-preview-meta" class="hint" role="status"></p>
+  <button id="image-size" class="btn small" type="button" hidden>原始尺寸</button>
+  <pre id="content-code" class="content-code" tabindex="0" hidden></pre>
+  <div id="image-scroll" class="image-scroll" hidden><img id="content-image" alt="所选需求图片预览"></div>
+  <p id="content-preview-error" class="status-line error" role="alert" hidden></p>
+</dialog>
 <script src="/panel-bridge.js" defer></script>
 <script src="/panel.js" defer></script>
 </body>

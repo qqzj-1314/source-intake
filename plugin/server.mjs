@@ -1,6 +1,7 @@
 import { previewSchema, importSchema, saveSettingsSchema, buildRequest } from './contracts.mjs';
 export { buildRequest } from './contracts.mjs';
-import { readFile, mkdtemp, writeFile, rm, realpath } from 'node:fs/promises';
+import { readFile, mkdtemp, writeFile, rm, realpath, open, lstat } from 'node:fs/promises';
+import { decodeRaster, inspectRaster, MAX_IMAGE_BYTES } from './image-format.mjs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { join, dirname, basename } from 'node:path';
@@ -54,6 +55,23 @@ export async function createServer({
   const nativeBridge = native || createNativeBridge({ python: pythonPath });
   const previews = new PreviewCache({ ttlMs: previewTtlMs, now, randomId });
   const screenshotDirs = new Set();
+  const imageFiles = new Map();
+  let stagedImageBytes = 0;
+  async function authorizeImages(paths) {
+    for (const path of paths) {
+      try { imageFiles.set(resolve(path), await realpath(path)); } catch { /* Selection remains usable even if the file later disappears. */ }
+    }
+  }
+  async function stageImage(bytes, format) {
+    if (screenshotDirs.size >= 50 || stagedImageBytes + bytes.length > 64 * 1024 * 1024) throw new Error('本连接暂存图片已达上限，请先导入已收集的材料，再重启插件连接。');
+    const dir = await mkdtemp(join(tmpdir(), 'source-intake-screenshot-'));
+    screenshotDirs.add(dir);
+    const path = join(dir, `粘贴图片-${randomUUID().slice(0, 8)}.${format.extension}`);
+    await writeFile(path, bytes);
+    stagedImageBytes += bytes.length;
+    await authorizeImages([path]);
+    return { canceled: false, path, mime_type: format.mime_type, bytes: bytes.length };
+  }
   const { version } = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'));
   const server = new McpServer({ name: serverName, version });
   const cleanupScreenshots = async () => {
@@ -82,15 +100,51 @@ export async function createServer({
     try {
       const captured = await nativeBridge.screenshot();
       if (!captured?.png_base64) return result({ canceled: true, note: captured?.note || '剪贴板中没有截图，可选择已保存的图片。' });
-      if (captured.png_base64.length > 28_000_000) throw new NativeError('截图过大，请保存为图片后选择文件。');
-      const png = Buffer.from(captured.png_base64, 'base64');
-      if (!png.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) throw new NativeError('截图格式无效。');
-      const dir = await mkdtemp(join(tmpdir(), 'source-intake-screenshot-'));
-      screenshotDirs.add(dir);
-      const path = join(dir, `截图-${randomUUID().slice(0, 8)}.png`);
-      await writeFile(path, png);
-      return result({ canceled: false, path });
+      const image = decodeRaster(captured.png_base64, 'image/png');
+      return result(await stageImage(image.bytes, image));
     } catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('panel_add_image', {
+    title: '添加本次粘贴的图片', description: '仅接收用户在输入区本次paste事件提供的图片字节，暂存为附件；不读取系统剪贴板。App-only。',
+    inputSchema: z.object({ image_base64: z.string().min(1).max(28_000_000), mime_type: z.string().max(100) }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
+  }, async ({ image_base64, mime_type }) => {
+    try {
+      const image = decodeRaster(image_base64, mime_type);
+      return result(await stageImage(image.bytes, image));
+    } catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('panel_image_preview', {
+    title: '预览已收集的图片', description: '仅只读本面板用户已选择、复制文件列表或暂存的栅格图片。图片不会作为HTML执行。App-only。',
+    inputSchema: z.object({ path: z.string().min(1).max(4096) }).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
+  }, async ({ path }) => {
+    let handle;
+    try {
+      const actual = await realpath(path);
+      if (imageFiles.get(resolve(path)) !== actual) throw new Error('只能预览本面板已收集的图片；文件变化后请重新选择。');
+      const info = await lstat(actual);
+      if (!info.isFile() || info.size > MAX_IMAGE_BYTES) throw new Error('图片不是普通文件或超过 20 MiB 预览上限。');
+      handle = await open(actual, 'r');
+      const buffer = Buffer.alloc(Math.min(info.size + 1, MAX_IMAGE_BYTES + 1));
+      let used = 0;
+      while (used < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, used, buffer.length - used, null);
+        if (!bytesRead) break;
+        used += bytesRead;
+      }
+      if (used > MAX_IMAGE_BYTES || (await handle.stat()).size !== used) throw new Error('图片在读取时发生变化或过大，请重新选择。');
+      const bytes = buffer.subarray(0, used);
+      const format = inspectRaster(bytes);
+      return { content: [{ type: 'text', text: '已读取所选图片供面板预览。' }], structuredContent: {
+        mime_type: format.mime_type, bytes: used, data_url: `data:${format.mime_type};base64,${bytes.toString('base64')}`,
+      } };
+    } catch (error) { return toolError(error); }
+    finally { await handle?.close(); }
   });
 
   server.registerResource('source-intake-panel', PANEL_URI, {
@@ -177,7 +231,9 @@ export async function createServer({
     try {
       const value = await nativeBridge.chooseFiles(initial?.trim() || '', purpose);
       const canceled = value?.canceled !== false;
-      return result({ canceled, paths: canceled ? [] : sanitizePaths(value.paths) });
+      const paths = canceled ? [] : sanitizePaths(value.paths);
+      await authorizeImages(paths);
+      return result({ canceled, paths });
     } catch (error) { return toolError(error); }
   });
 
@@ -193,6 +249,7 @@ export async function createServer({
       const note = sanitizeNote(value?.note);
       if (value?.kind === 'files') {
         const files = sanitizePaths(value.files);
+        await authorizeImages(files);
         if (files.length) return result({ kind: 'files', files, ...(note ? { note } : {}) });
         return result({ kind: 'empty', ...(note ? { note } : {}) });
       }

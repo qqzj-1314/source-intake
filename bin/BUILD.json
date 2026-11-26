@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "build_tool": {
     "name": "esbuild",
     "version": "0.28.2"
@@ -19,8 +19,8 @@
   "sources": {
     "plugin/contracts.mjs": "feb6af1917596729121cce70cb6ced467ef5716b597009a5060a34b64e1d8728",
     "plugin/engine.mjs": "3d60216ec17e327fc14825ef3db17dfb48c3f1821398d64b70ff2d4aabb9cd15",
-    "plugin/package-lock.json": "80eb29054254d4a8f5da77828af939091115b691ebd2dca1aae212bbc5100406",
-    "plugin/package.json": "ef24f51b52f88679d9d71d894446c78055156f0cce95a3f1ecb171e945ed5908",
+    "plugin/package-lock.json": "da7900585f9308c4db38ff69788cef8e843f66884e736ce395229462ad710783",
+    "plugin/package.json": "ad0af479b09f8c67fb332b8833c549b827d0c02eecc87b4a61af1a13677732ee",
     "plugin/preview-cache.mjs": "c833b57181cc05e43f82f0bc4fd0d688c15ea81de4419921938e800408829d4c",
     "plugin/universal-server.mjs": "eed9bb6e8ebcb5a02dc4c4909f953f04799f458460a3bdf366dfcb907af2422d",
     "scripts/doctor.mjs": "83a29db344060de236aaa59acaa8f0e99300fdf27debf878aee88c891fdfce9c"

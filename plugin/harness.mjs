@@ -116,12 +116,12 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
   await client.connect(clientTransport);
 
   const allowedTools = new Set(['open_panel', 'panel_state', 'panel_choose_directory', 'panel_choose_files',
-    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot', 'panel_list_requirements']);
+    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot', 'panel_list_requirements', 'panel_add_image', 'panel_image_preview']);
   const screenshotPaths = new Set();
 
   async function restrictedCall(name, args) {
     if (!allowedTools.has(name)) throw new Error('该工具在验收 Harness 中不可用。');
-    if (name === 'panel_screenshot') {
+    if (['panel_screenshot', 'panel_add_image'].includes(name)) {
       const response = await client.callTool({ name, arguments: args });
       if (response.structuredContent?.path) screenshotPaths.add(await realpath(response.structuredContent.path));
       return response;
@@ -167,7 +167,7 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
         let raw = '';
         for await (const chunk of request) {
           raw += chunk;
-          if (raw.length > 16 * 1024 * 1024) throw new Error('请求过大。');
+          if (raw.length > 29 * 1024 * 1024) throw new Error('请求过大。');
         }
         const body = JSON.parse(raw || '{}');
         if (typeof body.name !== 'string' || !body.arguments || typeof body.arguments !== 'object') {

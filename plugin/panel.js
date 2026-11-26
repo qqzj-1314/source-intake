@@ -24,6 +24,65 @@
     sources: [], nextSourceId: 1, sessionId: randomId(), preview: null, previewBlocked: false, revision: 0,
   };
   const rowRefs = new Map();
+  const IMAGE_NAME = /\.(png|jpe?g|gif|webp|bmp)$/i;
+  let activeContentId = null;
+  let contentPreviewRevision = 0;
+  const imagePasteQueue = [];
+  let processingImagePaste = false;
+  let queuedImages = 0;
+
+  async function imageUrl(entry) {
+    // Re-read on every explicit preview so external file edits do not show a stale image.
+    const image = await hostCall('panel_image_preview', { path: entry.path });
+    if (!/^data:image\/(png|jpeg|gif|webp|bmp);base64,/.test(image?.data_url || '')) throw new Error('图片预览返回无效。');
+    return image.data_url;
+  }
+
+  async function showContent(entry) {
+    activeContentId = entry.id;
+    const requestRevision = ++contentPreviewRevision;
+    const dialog = $('content-preview');
+    $('content-preview-title').textContent = entry.filename || (entry.kind === 'text' ? `粘贴内容 #${entry.number}` : basename(entry.path));
+    $('content-code').hidden = true;
+    $('image-scroll').hidden = true;
+    $('image-size').hidden = true;
+    $('content-preview-error').hidden = true;
+    $('content-image').removeAttribute('src');
+    $('content-image').classList.remove('original');
+    $('image-size').textContent = '原始尺寸';
+    if (!dialog.open) dialog.showModal();
+    if (entry.kind === 'text') {
+      $('content-preview-meta').textContent = `${entry.text.length} 字符 · 只读原文预览`;
+      $('content-code').textContent = entry.text;
+      $('content-code').hidden = false;
+      return;
+    }
+    $('content-preview-meta').textContent = '正在加载图片…';
+    try {
+      const url = await imageUrl(entry);
+      if (activeContentId !== entry.id || requestRevision !== contentPreviewRevision || !dialog.open) return;
+      entry.imageUrl = url;
+      const image = $('content-image');
+      image.onload = () => {
+        if (activeContentId === entry.id && requestRevision === contentPreviewRevision) $('content-preview-meta').textContent = `${image.naturalWidth} × ${image.naturalHeight} · 图片预览`;
+      };
+      image.onerror = () => {
+        if (activeContentId !== entry.id || requestRevision !== contentPreviewRevision) return;
+        $('content-preview-meta').textContent = '无法预览图片';
+        $('image-size').hidden = true;
+        $('content-preview-error').textContent = '浏览器无法解码这张图片，附件仍保留；可保存为 PNG/JPEG 后重新添加。';
+        $('content-preview-error').hidden = false;
+      };
+      image.src = url;
+      $('image-scroll').hidden = false;
+      $('image-size').hidden = false;
+    } catch (error) {
+      if (activeContentId !== entry.id || requestRevision !== contentPreviewRevision || !dialog.open) return;
+      $('content-preview-meta').textContent = '';
+      $('content-preview-error').textContent = error.message;
+      $('content-preview-error').hidden = false;
+    }
+  }
 
   function randomId() {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -172,6 +231,7 @@
   }
 
   function sourceLabel(entry) {
+    if (entry.pastedImage) return `粘贴图片 #${entry.number} · ${basename(entry.path)}`;
     return entry.kind === 'path'
       ? entry.path
       : `粘贴内容 #${entry.number}（${entry.text.length} 字符）`;
@@ -209,13 +269,22 @@
       remove.type = 'button';
       remove.addEventListener('click', () => {
         if (state.busy) return;
+        if (activeContentId === entry.id) $('content-preview').close();
         state.sources = state.sources.filter(item => item.id !== entry.id);
         rowRefs.delete(entry.id);
         invalidatePreview('来源清单已变化，请重新预览。');
         renderSources();
         setStatus(`已删除 1 项，当前 ${state.sources.length} 项。`);
       });
-      head.append(name, kindBadge, statusBadge, remove);
+      head.append(name, kindBadge, statusBadge);
+      const canPreviewImage = entry.kind === 'path' && (entry.imageUrl || IMAGE_NAME.test(entry.path));
+      if (entry.kind === 'text' || canPreviewImage) {
+        const inspect = el('button', 'btn small', entry.kind === 'text' ? '预览代码' : '预览图片');
+        inspect.type = 'button';
+        inspect.addEventListener('click', () => showContent(entry));
+        head.appendChild(inspect);
+      }
+      head.appendChild(remove);
 
       const fields = el('div', 'source-fields');
       const filenameLabel = el('label', 'field');
@@ -253,6 +322,13 @@
 
       const notes = el('p', 'source-notes');
       article.append(head, fields, notes);
+      if (entry.imageUrl) {
+        const thumb = el('img', 'image-thumb');
+        thumb.alt = '已粘贴图片缩略图';
+        thumb.src = entry.imageUrl;
+        thumb.addEventListener('click', () => showContent(entry));
+        article.appendChild(thumb);
+      }
       (entry.role === 'attachment' ? $('attachment-list') : sourceList).appendChild(article);
       rowRefs.set(entry.id, { kind: kindBadge, status: statusBadge, notes });
       refreshEntry(entry);
@@ -262,13 +338,13 @@
     updateControls();
   }
 
-  function addPaths(paths, role = 'source') {
+  function addPaths(paths, role = 'source', imageUrl = '') {
     let added = 0;
     for (const path of paths) {
       if (typeof path !== 'string' || !path.trim()) continue;
       state.sources.push({
         id: `src-${state.nextSourceId}`, number: state.nextSourceId++, kind: 'path',
-        path: path.trim(), role, text: '', filename: '', destination: '', preview: null,
+        path: path.trim(), role, text: '', filename: '', destination: '', preview: null, imageUrl, pastedImage: !!imageUrl,
       });
       added++;
     }
@@ -616,6 +692,59 @@
     pasteBox.hidden = !pasteBox.hidden;
     if (!pasteBox.hidden) pasteText.focus();
   });
+  $('close-content-preview').addEventListener('click', () => $('content-preview').close());
+  $('content-preview').addEventListener('close', () => {
+    if ($('content-preview').open) return;
+    contentPreviewRevision++;
+    activeContentId = null;
+    $('content-code').textContent = '';
+    $('content-image').removeAttribute('src');
+    $('content-image').onload = null;
+    $('content-image').onerror = null;
+  });
+  $('image-size').addEventListener('click', () => {
+    const original = $('content-image').classList.toggle('original');
+    $('image-size').textContent = original ? '适应窗口' : '原始尺寸';
+  });
+  pasteText.addEventListener('paste', event => {
+    const items = Array.from(event.clipboardData?.items || []);
+    let images = items.filter(item => item.kind === 'file' && item.type.startsWith('image/')).map(item => item.getAsFile()).filter(Boolean);
+    if (!images.length) images = Array.from(event.clipboardData?.files || []).filter(file => file.type.startsWith('image/'));
+    if (!images.length) return; // Leave ordinary text paste to the browser.
+    event.preventDefault();
+    if (!state.ready || state.busy && !processingImagePaste) { setStatus('当前操作尚未完成，请稍后重新粘贴图片。', true); return; }
+    if (images.length > 20 || state.sources.length + queuedImages + images.length > 200) { setStatus('一次最多粘贴 20 张图片，清单最多 200 项。', true); return; }
+    queuedImages += images.length;
+    imagePasteQueue.push(images);
+    void processImagePastes();
+  });
+
+  async function processImagePastes() {
+    if (processingImagePaste) return;
+    processingImagePaste = true;
+    state.busy = true;
+    updateControls();
+    let added = 0;
+    const failures = [];
+    try {
+      while (imagePasteQueue.length) for (const file of imagePasteQueue.shift()) {
+        try {
+          if (file.size > 20 * 1024 * 1024) throw new Error('图片超过 20 MiB，请选择文件导入。');
+          const url = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('无法读取本次粘贴的图片。'));
+            reader.readAsDataURL(file);
+          });
+          const value = await hostCall('panel_add_image', { image_base64: url.slice(url.indexOf(',') + 1), mime_type: file.type });
+          if (!value?.path) throw new Error('图片未暂存成功。');
+          added += addPaths([value.path], 'attachment', url);
+        } catch (error) { failures.push(error.message); }
+        finally { queuedImages--; }
+      }
+      setStatus(`已将 ${added} 张图片加入需求附件，已有代码输入保持不变。${failures.length ? ` ${failures.length} 张未添加：${failures.join('；')}` : ''}`, !!failures.length);
+    } finally { state.busy = false; processingImagePaste = false; updateControls(); }
+  }
   $('cancel-paste').addEventListener('click', () => {
     pasteBox.hidden = true;
     setStatus('已取消粘贴，未添加内容。');
