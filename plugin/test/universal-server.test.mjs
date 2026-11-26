@@ -30,7 +30,7 @@ test('universal MCP is independent of GUI and supports cross-agent requirement h
     return response.structuredContent;
   }
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['intake_apply', 'intake_context', 'intake_history', 'intake_list_requirements', 'intake_plan', 'intake_status']);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['intake_append_handoff', 'intake_apply', 'intake_context', 'intake_history', 'intake_list_requirements', 'intake_plan', 'intake_status']);
   assert.ok(tools.every(tool => !tool._meta?.ui));
   const status = await call('intake_status', {});
   assert.equal(status.ok, true);
@@ -58,6 +58,31 @@ test('universal MCP is independent of GUI and supports cross-agent requirement h
   assert.equal(context.prompt, prompt);
   assert.equal(context.requirement.id, 'UNIVERSAL-QA');
   assert.equal(context.attachments.length, 2);
+  assert.equal(context.schema_version, 2);
+  assert.deepEqual(context.handoff.records, []);
+  assert.equal(context.handoff.material_snapshot.complete, true);
+  const originalMaterials = await Promise.all(['README.md', 'requirement.json', '修改说明.md'].map(file => readFile(join(imported.work_package.dir, file))));
+  const handoff = await call('intake_append_handoff', {
+    directory: imported.work_package.dir, expected_material_fingerprint: context.handoff.material_snapshot.fingerprint,
+    author: 'MCP acceptance fixture', status: 'ready_for_review', summary: '合成验收已完成。\r\n',
+    changed_files: ['frontend/scripts/dhcnewpro/dhcemc/demo.js'], validation: 'Synthetic fixture only; no clinical system validation.',
+    next_steps: '由另一连接读取交接记录。',
+  });
+  assert.equal(handoff.ok, true);
+  const resumed = (await another.callTool({ name: 'intake_context', arguments: { directory: imported.work_package.dir } })).structuredContent;
+  assert.equal(resumed.handoff.records.length, 1);
+  assert.equal(resumed.handoff.records[0].summary, '合成验收已完成。\r\n');
+  assert.equal(resumed.handoff.records[0].material_match, 'unchanged');
+  assert.deepEqual(await Promise.all(['README.md', 'requirement.json', '修改说明.md'].map(file => readFile(join(imported.work_package.dir, file)))), originalMaterials);
+  await writeFile(join(imported.work_package.attachments_dir, 'later/补充.md'), '人工更新材料，需要重读');
+  const changed = await call('intake_context', { directory: imported.work_package.dir });
+  assert.equal(changed.handoff.records[0].material_match, 'changed');
+  const rejected = await client.callTool({ name: 'intake_append_handoff', arguments: {
+    directory: imported.work_package.dir, expected_material_fingerprint: context.handoff.material_snapshot.fingerprint,
+    author: 'stale fixture', status: 'in_progress', summary: '不可保存过期视图。',
+  } });
+  assert.equal(rejected.isError, true);
+  assert.equal((await call('intake_context', { directory: imported.work_package.dir })).handoff.records.length, 1);
   const indexed = await call('intake_list_requirements', { root, query: 'universal-qa' });
   assert.equal(indexed.matches, 1);
   assert.equal(indexed.items[0].directory, imported.work_package.dir);

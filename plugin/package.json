@@ -1,6 +1,6 @@
 {
   "name": "source-intake-plugin",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "跨智能体源码与需求材料导入：通用MCP、可搬迁Skill及Codex内嵌面板。",

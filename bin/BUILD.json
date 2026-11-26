@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "build_tool": {
     "name": "esbuild",
     "version": "0.28.2"
@@ -9,7 +9,7 @@
   "entries": {
     "server": {
       "path": "bin/universal-server.mjs",
-      "sha256": "890869b241d7505c0dd7504cd90c5d2f432432f0f03957aaa52dc8ae6398e673"
+      "sha256": "6adb8c137afc5dcc76c2655c693fa65d31b321684d63b14f3a4e3709d89559a0"
     },
     "doctor": {
       "path": "bin/doctor.mjs",
@@ -18,11 +18,11 @@
   },
   "sources": {
     "plugin/contracts.mjs": "feb6af1917596729121cce70cb6ced467ef5716b597009a5060a34b64e1d8728",
-    "plugin/engine.mjs": "a53ef9baffd17bc88df9fee5a6a546344e6c025c679a450b83d94e4923f721a3",
-    "plugin/package-lock.json": "788387dbc51f0413d3cb74f1ab9af4bcfe05e696463e0140b205c0d2e4d5076e",
-    "plugin/package.json": "28baaf67b328aa4b5d481dee6c0e7454d0314d0d354417a9a38a4a2bceeec5f8",
+    "plugin/engine.mjs": "3d60216ec17e327fc14825ef3db17dfb48c3f1821398d64b70ff2d4aabb9cd15",
+    "plugin/package-lock.json": "b3ae75bcac133a3ceddf9055058a468cbfa9f81c85b067de4af6ba205b4c3bfe",
+    "plugin/package.json": "8320b068aef426cbce2002057972b5e30c69f3e4093fcefc47156ca3a38377c6",
     "plugin/preview-cache.mjs": "c833b57181cc05e43f82f0bc4fd0d688c15ea81de4419921938e800408829d4c",
-    "plugin/universal-server.mjs": "e7d66c483eb6a9b6842d1187d96e4e6f8712dad62f72c21a3c058bcd87fe8d3e",
+    "plugin/universal-server.mjs": "eed9bb6e8ebcb5a02dc4c4909f953f04799f458460a3bdf366dfcb907af2422d",
     "scripts/doctor.mjs": "83a29db344060de236aaa59acaa8f0e99300fdf27debf878aee88c891fdfce9c"
   },
   "dependencies": [

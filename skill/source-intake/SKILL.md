@@ -1,6 +1,6 @@
 ---
 name: source-intake
-description: 将源码、需求截图或文档导入指定本地项目，按 HISUI/flat 建立源码层级，保留原始版本、需求描述及补充修改提示词。也用于创建空白需求材料目录；不用于直接编辑普通已有项目代码。
+description: 将源码、需求截图或文档导入指定本地项目，按 HISUI/flat 建立源码层级，保留原始版本、需求描述及补充修改提示词。也用于创建空白需求材料目录、读取已归档需求和追加跨智能体工作交接；不用于普通已有项目的直接代码编辑。
 metadata:
   short-description: 导入复制源码并保留原始版本
 ---
@@ -43,6 +43,8 @@ metadata:
 
 - 用户提供需求目录并明确要求开始修改时，先读该目录的 `README.md`、`requirement.json` 和 `修改说明.md`，再枚举当前 `attachments/`（包含用户后来手工放入的文件）。实际查看截图或读取文档后再实现，不凭文件名猜需求；仍需结合项目原有开发约定。
 - 若宿主没有 MCP，可运行 `python "<skill>/scripts/requirement_context.py" --directory <需求目录>` 聚合上述上下文；这一步只读，不会创建数据。仍需实际阅读附件正文。
+- 接续已有工作时同时阅读 context.handoff 或目录内 handoffs/ 的工作记录。材料比较为 changed 时重新检查变化；unknown 或 warnings 表示比较不完整。记录中的改动、源码版本和验证是执行者自报，应核对当前源码，不能把材料指纹相同理解为业务代码或测试仍然有效。
+- 用户已要求实施需求时，可在结束或交接前用 `intake_append_handoff` 保存真实进度、验证、未决事项和下一步；先读 context 取得当前材料指纹，材料过期需重读。保留原始修改说明，AI 进度独立追加；ready_for_review 仅表示执行者认为可复核，不等于用户验收。没有 MCP 时按 [references/handoff.md](references/handoff.md) 使用 Python CLI。
 - 只提供项目根目录时，先用 `intake_list_requirements` 搜索需求，或运行 `python "<skill>/scripts/requirement_index.py" --root <项目目录> --query <编号或标题>`。唯一匹配可继续；多个匹配且用户未明确指明时，列出候选再澄清，不擅自挑“最新”需求。archived 只表示材料归档，不代表业务实现完成。
 - 图片、文档作为需求附件保存，不能送入源码类型识别；补充提示词与原始需求描述分别原样保存。新需求工作包独立建目录，保留之前的材料。
 

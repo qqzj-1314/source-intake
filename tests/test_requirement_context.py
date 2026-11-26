@@ -83,9 +83,9 @@ class RequirementContextTests(unittest.TestCase):
         self.assertEqual(after, before, "读取上下文不应创建或改写工作包内容")
         self.assertEqual(set(first), {
             "schema_version", "directory", "requirement", "prompt",
-            "readme", "attachments", "warnings",
+            "readme", "attachments", "warnings", "handoff",
         })
-        self.assertEqual(first["schema_version"], 1)
+        self.assertEqual(first["schema_version"], 2)
         self.assertEqual(first["directory"], str(self.pkg.resolve()))
         self.assertEqual(first["requirement"], requirement)
         self.assertEqual(first["prompt"], prompt, "提示词必须原样保留 CRLF")
@@ -152,7 +152,7 @@ class RequirementContextTests(unittest.TestCase):
         self.assertEqual(process.returncode, 1, process.stderr.decode("utf-8", errors="replace"))
         payload = json.loads(process.stdout.decode("utf-8"))
         self.assertIs(payload.get("ok"), False)
-        self.assertEqual(payload["schema_version"], 1)
+        self.assertEqual(payload["schema_version"], 2)
         self.assertEqual(payload["error"]["type"], "InvalidRequirementJson")
         self.assertIn("JSON", payload["error"]["message"])
 

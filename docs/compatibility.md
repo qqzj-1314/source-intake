@@ -1,6 +1,6 @@
 # 各编程智能体接入与验证
 
-核对日期：2026-11-25。这里的“支持”分为配置格式、真实协议和宿主实际调用三层。
+核对日期：2026-11-26。这里的“支持”分为配置格式、真实协议和宿主实际调用三层。
 安装后保留整个项目目录；换机器或移动目录后重新导出配置。
 
 ## 通用安装
@@ -15,9 +15,11 @@ node plugin/doctor-launch.mjs --config plugin/.local/clients/generic.json
 可用 `--python <解释器绝对路径>` 指定 Python，`--output <目录>` 改输出目录。生成器只写导出文件，保留原客户端配置；目标文件内容不同则拒绝覆盖，显式 `--force` 才备份后重写。
 0.5.0 起完整包自带编译后的通用运行时和依赖许可文本。没有开发用 node_modules 也能导出配置、运行 doctor 和启动通用 MCP；Node/Python 仍是前提。修改源码或依赖锁后需要重新构建，不能把陈旧 bin 当作最新实现。升级旧版本后应重新导出使用 launch.mjs 的配置。
 
-同一服务器提供 `intake_status`、`intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`，以及 `implement_requirement` 提示词。
+同一服务器提供 `intake_status`、`intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`、`intake_append_handoff`，以及 `implement_requirement` 提示词。
 智能体先预览，使用同一 MCP 连接返回的 preview_id 执行；令牌过期、使用过或来源变更后需要重新预览。
 已经有用户导入授权时可直接完成流程，无需人为增加重复确认。替换原文件须有对应用户授权。
+
+0.6.0 的 context.schema_version=2，原有材料字段保留，新增 handoff。先读取上下文取得材料指纹，再显式追加工作记录；独立文件不会覆盖原始提示词。工作记录为执行者自报，状态不等于用户验收；材料指纹不覆盖项目源码。用法及文件系统限制见 [交接说明](../skill/source-intake/references/handoff.md)。
 
 ## 客户端入口
 

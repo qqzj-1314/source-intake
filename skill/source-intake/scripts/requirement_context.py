@@ -14,7 +14,7 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_BODY_BYTES = 1024 * 1024
 MAX_ATTACHMENTS = 200
 MAX_HASH_BYTES = 64 * 1024 * 1024
@@ -307,7 +307,7 @@ def _attachment_context(root: Path, warnings: list[str]) -> list[dict[str, Any]]
     return attachments
 
 
-def read_context(directory: str | Path) -> dict[str, Any]:
+def read_context(directory: str | Path, *, include_handoffs: bool = True) -> dict[str, Any]:
     """读取工作包；致命问题返回带 ok=false/error 的字典，缺个别文件只记 warnings。"""
     warnings: list[str] = []
     try:
@@ -337,7 +337,7 @@ def read_context(directory: str | Path) -> dict[str, Any]:
     prompt_result = _read_limited_file(root / PROMPT_NAME, PROMPT_NAME, root, MAX_BODY_BYTES, warnings)
     prompt = _decode_utf8(prompt_result[0], PROMPT_NAME, warnings) if prompt_result else ""
 
-    return {
+    payload = {
         "schema_version": SCHEMA_VERSION,
         "directory": str(root),
         "requirement": requirement,
@@ -346,6 +346,13 @@ def read_context(directory: str | Path) -> dict[str, Any]:
         "attachments": _attachment_context(root, warnings),
         "warnings": warnings,
     }
+    if include_handoffs:
+        from handoff_store import read_handoffs
+        try:
+            payload["handoff"] = read_handoffs(root, context=payload)
+        except (OSError, ValueError) as exc:
+            payload["handoff"] = {"ok": False, "records": [], "warnings": [str(exc)]}
+    return payload
 
 
 class _JsonArgumentParser(argparse.ArgumentParser):

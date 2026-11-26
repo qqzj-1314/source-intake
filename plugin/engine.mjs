@@ -159,4 +159,16 @@ export async function listRequirementPackages({ python, root, query = '', limit 
   return response.payload;
 }
 
+export async function appendRequirementHandoff({ python, directory, record }) {
+  const script = fileURLToPath(new URL('../skill/source-intake/scripts/requirement_handoff.py', import.meta.url));
+  const temp = await mkdtemp(join(tmpdir(), TMP_PREFIX));
+  try {
+    const input = join(temp, 'handoff.json');
+    await writeFile(input, JSON.stringify(record), 'utf8');
+    const response = await runCli({ python, engine: script, args: ['append', '--directory', directory, '--input', input], timeoutMs: 30000 });
+    if (response.exitCode !== 0 || response.payload.ok !== true) throw new EngineError(response.payload.error?.message || '无法保存工作交接记录。');
+    return response.payload;
+  } finally { await cleanupTemp(temp); }
+}
+
 export { cleanupTemp };

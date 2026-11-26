@@ -50,11 +50,14 @@ Windows、Node.js 22.19+、npm、Python 3.10+（含 Tk），以及支持本地�
     requirement.json  结构化需求快照
     修改说明.md       补充提示词原文
     attachments/      截图、文档及后来手动添加的材料
+    handoffs/         后续按需追加的工作进度、验证与下一步
 ```
 
 创建空白需求目录会保存当前需求说明并创建空的 attachments；不会同时导入清单中的文件。正常导入则保存源码与附件。导入结果中提供可复制给 AI 的完整目录提示词。
 
 BOS 目前使用人工需求字段，查询及状态写回尚未接入。面板不会自动执行、编译或发布导入的源码。
+
+换智能体继续工作时，`intake_context` 会同时读取已有交接记录，提示需求材料与记录时相比是否变化。`intake_append_handoff` 可保存已改文件、验证结果、未决问题和下一步；纯 Skill 也有 Python CLI。记录独立追加，保留原始需求和修改说明。材料相同不能证明业务源码或测试仍有效，交接状态也不代表用户已验收。用法见 [工作交接](skill/source-intake/references/handoff.md)。
 
 ## 开发与验证
 

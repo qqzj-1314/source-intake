@@ -57,6 +57,13 @@ test('release runs without any development node_modules and refuses stale or dam
   assert.equal(found.matches, 1);
   const context = await call('intake_context', { directory: found.items[0].directory });
   assert.equal(context.prompt, '保持接口。\r\n');
+  const saved = await call('intake_append_handoff', { directory: found.items[0].directory,
+    expected_material_fingerprint: context.handoff.material_snapshot.fingerprint,
+    author: 'offline fixture', status: 'in_progress', summary: '独立运行时支持交接。', next_steps: '复核合成源码。' });
+  assert.equal(saved.ok, true);
+  const resumed = await call('intake_context', { directory: found.items[0].directory });
+  assert.equal(resumed.handoff.records[0].summary, '独立运行时支持交接。');
+  assert.equal(resumed.handoff.records[0].material_match, 'unchanged');
   await client.close(); client = null;
   const source = join(temp, 'plugin/contracts.mjs');
   const original = await readFile(source);

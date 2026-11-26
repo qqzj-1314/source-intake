@@ -389,7 +389,7 @@
     if (payload?.batch_dir) addResultRow('批次目录', payload.batch_dir, { mono: true });
     if (ok && payload?.work_package?.dir) {
       addResultRow('需求目录', payload.work_package.dir, { mono: true });
-      addResultRow('交给 AI 的提示词', `请读取“${payload.work_package.dir}”中的 README.md、修改说明.md 和 attachments 当前全部材料，结合项目源码，开始实现需求并验证。`, { mono: true });
+      addResultRow('交给 AI 的提示词', `请读取“${payload.work_package.dir}”中的 README.md、修改说明.md、attachments 当前材料和已有 handoffs 工作交接，复核材料变化及当前源码，接着实现需求并验证。完成后追加真实进度和下一步，保留原始修改说明。`, { mono: true });
     }
     const summary = payload?.summary || {};
     const counts = Object.entries(summary).filter(([, value]) => typeof value === 'number' && value > 0)
@@ -671,7 +671,7 @@
         const row = el('article', 'source-item');
         row.appendChild(el('strong', '', `${item.id || '未编号'} · ${item.title || '未填写标题'}`));
         row.appendChild(el('p', 'source-notes', item.directory));
-        row.appendChild(el('p', 'hint', `请读取“${item.directory}”中的 README.md、修改说明.md 与 attachments 当前材料，结合项目源码开始处理需求。`));
+        row.appendChild(el('p', 'hint', `请读取“${item.directory}”中的 README.md、修改说明.md、attachments 当前材料和已有 handoffs 工作交接，复核材料变化及源码后继续处理；结束时追加进度和下一步。`));
         if (item.warnings?.length) row.appendChild(el('p', 'source-notes error', item.warnings.join('；')));
         output.appendChild(row);
       }

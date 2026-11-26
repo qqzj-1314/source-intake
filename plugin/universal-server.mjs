@@ -9,7 +9,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { previewSchema, importSchema, buildRequest } from './contracts.mjs';
 import { PreviewCache } from './preview-cache.mjs';
-import { DEFAULT_ENGINE, detectPython, planRequest, applyPlan, readHistory, readRequirementContext, listRequirementPackages } from './engine.mjs';
+import { DEFAULT_ENGINE, detectPython, planRequest, applyPlan, readHistory, readRequirementContext, listRequirementPackages, appendRequirementHandoff } from './engine.mjs';
 
 const result = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value });
 const failure = error => ({ isError: true, content: [{ type: 'text', text: error.message || '操作失败' }] });
@@ -31,7 +31,7 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
     await planRequest({ python: executable, engine: enginePath, request: { root: join(tmpdir(), 'source-intake-healthcheck'), sources: [] } });
     return { ok: true, version, transport: 'stdio', platform: process.platform,
       runtime_mode: import.meta.url.endsWith('/bin/universal-server.mjs') ? 'standalone' : 'source',
-      capabilities: ['plan', 'apply', 'history', 'requirement-context', 'requirement-index'],
+      capabilities: ['plan', 'apply', 'history', 'requirement-context', 'requirement-index', 'work-handoff'],
       python: executable, engine: enginePath, ui_required: false, clipboard_access: false };
   }));
 
@@ -66,9 +66,27 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
 
   server.registerTool('intake_context', {
     title: '读取需求与补充说明',
-    description: '只读汇总需求目录的README、原始补充提示词和当前附件清单（包含后来手动添加的材料）。图片和文档需继续用当前智能体的图片/文档工具实际阅读，不能根据文件名猜需求。',
+    description: '只读汇总需求目录的README、原始补充提示词、当前附件清单和工作交接记录。handoff返回材料指纹、记录和材料变化提示；交接中的验证是执行者自报，源码仍须复核。图片和文档需实际阅读，不能根据文件名猜需求。',
     inputSchema: z.object({ directory: z.string().trim().min(1).max(4096) }).strict(), annotations: readonly,
   }, guard(({ directory }) => readRequirementContext({ python: executable, directory })));
+
+  server.registerTool('intake_append_handoff', {
+    title: '追加工作交接记录',
+    description: '在已有需求目录追加独立记录，保存实际修改、验证结果、未决问题和下一步。先读取intake_context并传handoff.material_snapshot.fingerprint，材料变化后重新读取。不会修改原始需求或修改说明；不自动执行验证，不表示用户已验收。只记录真实进度，author是执行者自报名称；每次调用新建记录，不自动重试写入。',
+    inputSchema: z.object({
+      directory: z.string().trim().min(1).max(4096),
+      expected_material_fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      author: z.string().trim().min(1).max(100),
+      status: z.enum(['in_progress', 'blocked', 'ready_for_review']),
+      summary: z.string().min(1).max(8000),
+      changed_files: z.array(z.string().min(1).max(500)).max(100).default([]),
+      validation: z.string().max(12000).default(''),
+      next_steps: z.string().max(8000).default(''),
+      open_questions: z.string().max(8000).default(''),
+      source_revision: z.string().max(200).default(''),
+    }).strict(),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, guard(({ directory, ...record }) => appendRequirementHandoff({ python: executable, directory, record })));
 
   server.registerTool('intake_list_requirements', {
     title: '按项目查找已有需求',
@@ -81,7 +99,7 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
     title: '开始实现已归档需求', description: '从需求目录接续修改任务，适用于不同编程智能体。',
     argsSchema: { directory: z.string().min(1).max(4096) },
   }, ({ directory }) => ({ messages: [{ role: 'user', content: { type: 'text', text:
-    `请处理目录 ${JSON.stringify(directory)} 下的需求。若给的是项目根目录，先调用 intake_list_requirements 查找；只有一个匹配可继续，多个匹配且用户未指明时列出供选择。确定需求目录后调用 intake_context，实际查看全部相关截图/文档，结合修改说明和项目开发约定，再实现需求、运行适当验证并报告变化。遇到材料缺失或真实冲突应说明；不要仅凭文件名推测，也不要把材料归档误报成需求已实现。` } }] }));
+    `请处理目录 ${JSON.stringify(directory)} 下的需求。若给的是项目根目录，先调用 intake_list_requirements 查找；只有一个匹配可继续，多个匹配且用户未指明时列出供选择。确定需求目录后调用 intake_context，阅读原始修改说明和已有工作交接记录。材料变化或匹配未知时复核有关材料；交接中的验证为执行者自报，仍应检查当前源码。实际查看相关截图/文档，结合项目开发约定实现需求、运行适当验证并报告变化，最后可调用 intake_append_handoff 保存真实进度、验证及下一步。不要把进度写入原始修改说明；遇到材料缺失或真实冲突应说明，不要仅凭文件名推测，也不要把材料归档误报成需求已实现。` } }] }));
   return server;
 }
 
