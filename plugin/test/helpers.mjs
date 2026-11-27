@@ -36,6 +36,7 @@ export async function fixture(t, options = {}) {
   let server;
   let client;
   t.after(async () => {
+    await options.beforeCleanup?.();
     await client?.close().catch(() => {});
     await server?.close().catch(() => {});
     await rm(root, { recursive: true, force: true });

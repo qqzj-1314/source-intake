@@ -89,12 +89,21 @@ function syntheticRecord(id = 1001) {
 
 async function createPanel(t, bos) {
   let current;
+  const pendingCalls = new Set();
   const native = createNative({
     chooseFiles(initial, purpose) {
       return { ok: true, canceled: false, paths: [join(current.root, purpose === 'attachment' ? 'synthetic.txt' : 'synthetic.js')] };
     },
   });
-  current = await fixture(t, { native, server: { bos } });
+  current = await fixture(t, {
+    native,
+    server: { bos },
+    async beforeCleanup() {
+      // Imports save preferences in the background. Finish those writes before
+      // fixture teardown closes the MCP connection and removes its directory.
+      while (pendingCalls.size) await Promise.allSettled([...pendingCalls]);
+    },
+  });
   await writeFile(join(current.root, 'synthetic.js'), 'const synthetic = true;\n');
   await writeFile(join(current.root, 'synthetic.txt'), 'synthetic attachment\n');
   const html = await readFile(new URL('../panel.html', import.meta.url), 'utf8');
@@ -121,10 +130,16 @@ async function createPanel(t, bos) {
       async call(name, args = {}) {
         const entry = { name, args: JSON.parse(JSON.stringify(args)), response: null };
         calls.push(entry);
-        const response = await current.call(name, args);
-        if (response.isError) throw new Error(response.content?.[0]?.text || '合成工具错误');
-        entry.response = response.structuredContent;
-        return response.structuredContent;
+        const request = current.call(name, args);
+        pendingCalls.add(request);
+        try {
+          const response = await request;
+          if (response.isError) throw new Error(response.content?.[0]?.text || '合成工具错误');
+          entry.response = response.structuredContent;
+          return response.structuredContent;
+        } finally {
+          pendingCalls.delete(request);
+        }
       },
       onClose(callback) { closeCallbacks.push(callback); },
     },
