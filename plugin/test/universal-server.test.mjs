@@ -30,7 +30,7 @@ test('universal MCP is independent of GUI and supports cross-agent requirement h
     return response.structuredContent;
   }
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['intake_append_handoff', 'intake_apply', 'intake_context', 'intake_history', 'intake_list_requirements', 'intake_plan', 'intake_status']);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['intake_append_handoff', 'intake_apply', 'intake_bos_query', 'intake_bos_status', 'intake_context', 'intake_history', 'intake_list_requirements', 'intake_plan', 'intake_status']);
   assert.ok(tools.every(tool => !tool._meta?.ui));
   const status = await call('intake_status', {});
   assert.equal(status.ok, true);

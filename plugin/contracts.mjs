@@ -18,11 +18,13 @@ const routesSchema = z.object({
 }).strict();
 
 const requirementSchema = z.object({
+  system: z.enum(['manual', 'BOS']).optional(),
   id: z.string().max(200).optional(),
   title: z.string().max(500).optional(),
   description: z.string().max(20000).optional(),
   prompt: z.string().max(100000).optional(),
   url: z.string().max(2000).optional(),
+  updated_at: z.string().max(100).optional(),
 }).strict();
 
 export const previewSchema = z.object({
@@ -74,13 +76,13 @@ export function buildRequest(input) {
     routes: input.routes ?? {},
     cls_layout: input.cls_layout,
     requirement: {
-      system: 'manual',
+      system: input.requirement?.system ?? 'manual',
       id: input.requirement?.id?.trim() || '',
       title: input.requirement?.title?.trim() || '',
       description: input.requirement?.description ?? '',
       prompt: input.requirement?.prompt ?? '',
       url: input.requirement?.url?.trim() || '',
-      updated_at: '',
+      updated_at: input.requirement?.updated_at?.trim() || '',
     },
     sources,
     ...(input.work_package ? { work_package: { token: randomUUID().replaceAll('-', '') } } : {}),

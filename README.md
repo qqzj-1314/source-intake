@@ -61,7 +61,13 @@ Windows、Node.js 22.19+、npm、Python 3.10+（含 Tk），以及支持本地�
 
 创建空白需求目录会保存当前需求说明并创建空的 attachments；不会同时导入清单中的文件。正常导入则保存源码与附件。导入结果中提供可复制给 AI 的完整目录提示词。
 
-BOS 目前使用人工需求字段，查询及状态写回尚未接入。面板不会自动执行、编译或发布导入的源码。
+### BOS 只读查询（可选）
+
+部署方获得相应内网服务授权后，仅在 **MCP 服务器进程环境**配置 `IMEDWAY_GATEWAY_KEY` 和 `IMEDWAY_BOS_TOKEN`。密钥不会传入面板、工具参数或日志；未配置或上游不可用不影响手工填写、预览、导入和交接等本地功能，启动时也不会自动连接 BOS。
+
+Codex 面板可按数字序号精确查询，或按接受人/接受组、创建日期和标题做高级筛选；非序号查询至少需要一个组/人条件。日期默认显示 Asia/Hong_Kong 当日至次日，查询历史须明确放宽范围。查询和选择不会覆盖当前需求；只有点击“带入需求”才写入编号、标题、描述及操作时间，保留补充提示词与源码/附件清单，并使旧预览失效。来源标记为 BOS，修改编号或主动切换后回到手工来源；未返回的 URL 保持空白。
+
+通用 MCP 提供同名能力的 `intake_bos_status` / `intake_bos_query`，面板使用 App-only 的 `panel_bos_status` / `panel_bos_query`。`configured` 只表示两个变量齐全，不等于已经连接。查询会把用户输入的筛选条件发送到部署方授权的远端服务；认证头仅用于该远端 HTTPS 连接，不发送项目源码或附件。服务只读，不写回 BOS 状态。显式带入后的需求字段会按用户确认保存在本地项目快照中。面板不会自动执行、编译或发布导入的源码。
 
 换智能体继续工作时，`intake_context` 会同时读取已有交接记录，提示需求材料与记录时相比是否变化。`intake_append_handoff` 可保存已改文件、验证结果、未决问题和下一步；纯 Skill 也有 Python CLI。记录独立追加，保留原始需求和修改说明。材料相同不能证明业务源码或测试仍有效，交接状态也不代表用户已验收。用法见 [工作交接](skill/source-intake/references/handoff.md)。
 
@@ -72,7 +78,7 @@ cd plugin
 npm ci --ignore-scripts
 npm test
 cd ..
-python -X utf8 -m unittest discover -s tests -v
+python -B -X utf8 -m unittest discover -s tests -v
 ```
 
 `plugin/` 是 MCP Apps 面板与 stdio 服务，`skill/source-intake/` 是 Skill 与 Python 导入内核，`tests/` 是内核测试。Skill 可单独复制到 Codex 的 skills 目录。

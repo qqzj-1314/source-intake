@@ -5,13 +5,18 @@
   let nextId = 1;
   let closed = false;
   const send = message => window.parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
+  function failure(message, code) {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  }
   function call(method, params, timeoutMs = 15000) {
-    if (closed) return Promise.reject(new Error('面板已关闭'));
+    if (closed) return Promise.reject(failure('面板已关闭', 'ECLOSED'));
     const id = nextId++;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(id);
-        reject(new Error('Codex 面板连接超时'));
+        reject(failure('等待 Codex 面板宿主响应超时；已停止等待，服务端任务可能仍在执行。', 'ETIMEDOUT'));
       }, timeoutMs);
       pending.set(id, { resolve, reject, timer });
       send({ id, method, params });
@@ -31,7 +36,7 @@
       for (const callback of onClose) callback();
       for (const item of pending.values()) {
         clearTimeout(item.timer);
-        item.reject(new Error('面板已关闭'));
+        item.reject(failure('面板已关闭', 'ECLOSED'));
       }
       pending.clear();
       send({ id: message.id, result: {} });
@@ -61,7 +66,8 @@
     },
     async call(name, args = {}) {
       await ready;
-      const response = await call('tools/call', { name, arguments: args }, 180000);
+      const timeoutMs = name === 'panel_bos_query' ? 40000 : name === 'panel_bos_status' ? 10000 : 180000;
+      const response = await call('tools/call', { name, arguments: args }, timeoutMs);
       if (response?.isError) throw new Error(response.content?.[0]?.text ?? '面板请求失败');
       if (response?.structuredContent) return response.structuredContent;
       const text = response?.content?.find(item => item.type === 'text')?.text;

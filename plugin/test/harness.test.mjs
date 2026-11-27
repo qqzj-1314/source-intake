@@ -34,6 +34,12 @@ test('local panel harness embeds the real panel, injects native demo data and co
 
   const state = await rpc('panel_state');
   assert.ok(Array.isArray(state.settings.recent_roots));
+  assert.deepEqual(await rpc('panel_bos_status'), { configured: true, connected: false });
+  const bos = await rpc('panel_bos_query', { id: '1001', limit: 1 });
+  assert.equal(bos.count, 1);
+  assert.equal(bos.items[0]['需求号'], 1001);
+  assert.match(bos.items[0]['标题'], /合成 BOS 需求/);
+  assert.deepEqual(await rpc('panel_bos_status'), { configured: true, connected: true });
   const directory = await rpc('panel_choose_directory');
   assert.equal(directory.path, harness.demo.projectRoot);
   await assert.rejects(access(harness.demo.projectRoot), { code: 'ENOENT' }, 'the demo picker does not create the directory');
@@ -65,4 +71,25 @@ test('local panel harness embeds the real panel, injects native demo data and co
   const root = harness.root;
   await harness.close();
   await assert.rejects(access(root), { code: 'ENOENT' }, 'closing the harness removes only its temp directory');
+});
+
+test('local harness accepts an injected synthetic BOS client', async t => {
+  const calls = [];
+  const bos = {
+    status: () => ({ configured: false, connected: false }),
+    async query(args) { calls.push(args); return { items: [], count: 0, total: 0, truncated: false }; },
+    async close() {},
+  };
+  const harness = await startHarness({ python: PYTHON, bos });
+  t.after(() => harness.close());
+  const response = await fetch(new URL('/rpc', harness.url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-source-intake-harness': harness.token },
+    body: JSON.stringify({ name: 'panel_bos_query', arguments: { id: '2001' } }),
+  });
+  const body = await response.json();
+  assert.equal(response.ok, true, body.error);
+  assert.equal(body.result.structuredContent.count, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].id, '2001');
 });

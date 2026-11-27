@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "build_tool": {
     "name": "esbuild",
     "version": "0.28.2"
@@ -9,7 +9,7 @@
   "entries": {
     "server": {
       "path": "bin/universal-server.mjs",
-      "sha256": "6adb8c137afc5dcc76c2655c693fa65d31b321684d63b14f3a4e3709d89559a0"
+      "sha256": "68c98de74421d40e9a5227a390a70da7bb88ba0a6b5c117c75023fb1617e6cd4"
     },
     "doctor": {
       "path": "bin/doctor.mjs",
@@ -17,12 +17,13 @@
     }
   },
   "sources": {
-    "plugin/contracts.mjs": "feb6af1917596729121cce70cb6ced467ef5716b597009a5060a34b64e1d8728",
+    "plugin/bos-client.mjs": "05d18d3a306a7fc5f768490a12961a93831574992130c881a55f93eaeb11348c",
+    "plugin/contracts.mjs": "a93087b4048402b5b925f7b270f548174dadbcb73522e15895312b851d4c42e2",
     "plugin/engine.mjs": "3d60216ec17e327fc14825ef3db17dfb48c3f1821398d64b70ff2d4aabb9cd15",
-    "plugin/package-lock.json": "da7900585f9308c4db38ff69788cef8e843f66884e736ce395229462ad710783",
-    "plugin/package.json": "ad0af479b09f8c67fb332b8833c549b827d0c02eecc87b4a61af1a13677732ee",
+    "plugin/package-lock.json": "435e4ee1ea18d448f37cf5d9044933d54cd0aa72bd9fa1b9848982e8ad3d1c3d",
+    "plugin/package.json": "fb7632d7a9de312c698d31a49b25a256315b1348b8e4c5f0b435fd7219d47e9a",
     "plugin/preview-cache.mjs": "c833b57181cc05e43f82f0bc4fd0d688c15ea81de4419921938e800408829d4c",
-    "plugin/universal-server.mjs": "eed9bb6e8ebcb5a02dc4c4909f953f04799f458460a3bdf366dfcb907af2422d",
+    "plugin/universal-server.mjs": "dcb8ecb95f27f19f995ccd78c6e53eaaf108a8d85314c77129aeda33cb2f9b7b",
     "scripts/doctor.mjs": "83a29db344060de236aaa59acaa8f0e99300fdf27debf878aee88c891fdfce9c"
   },
   "dependencies": [
@@ -42,8 +43,18 @@
       "license": "MIT"
     },
     {
+      "name": "content-type",
+      "version": "1.0.5",
+      "license": "MIT"
+    },
+    {
       "name": "cross-spawn",
       "version": "7.0.6",
+      "license": "MIT"
+    },
+    {
+      "name": "eventsource-parser",
+      "version": "3.1.1",
       "license": "MIT"
     },
     {
@@ -69,6 +80,11 @@
     {
       "name": "path-key",
       "version": "3.1.1",
+      "license": "MIT"
+    },
+    {
+      "name": "pkce-challenge",
+      "version": "5.0.2",
       "license": "MIT"
     },
     {

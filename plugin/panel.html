@@ -77,6 +77,11 @@
     .source-notes{margin:8px 0 0;color:var(--muted);font-size:12px;line-height:1.55;overflow-wrap:anywhere}
     .source-notes.error{color:var(--negative)}
     .paste-box{margin-top:14px;padding:14px;border:1px dashed var(--control);border-radius:var(--radius-control);background:var(--raised)}
+    .bos-query{padding:14px;border:1px solid var(--rule);border-radius:var(--radius-control);background:var(--raised)}
+    .bos-query summary{cursor:pointer;color:var(--muted-strong);font-size:13px}
+    .bos-result-select{display:flex;align-items:flex-start;gap:9px;min-width:0}
+    .bos-result-select input{flex:none;margin-top:5px}
+    .bos-result-title{font-weight:600;overflow-wrap:anywhere}
     .paste-box textarea{min-height:170px}
     .paste-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
     .image-thumb{display:block;max-width:240px;max-height:140px;object-fit:contain;margin:10px 0;border:1px solid var(--border);background:var(--surface);cursor:zoom-in}
@@ -157,13 +162,36 @@
         </div>
       </section>
       <section class="card" aria-label="需求信息">
-        <div class="card-head"><h2>需求信息</h2><p class="hint">可选；BOS 数据仍由人工填写。需求编号会写入批次快照。</p></div>
+        <div class="card-head"><h2>需求信息</h2><p class="hint">可手工填写，或只读查询 BOS 后显式带入；任何变化都需重新预览。</p></div>
+        <div class="bos-query">
+          <div class="toolbar" style="margin-top:0"><span class="badge">BOS 只读查询</span><span id="bos-connection" class="hint">正在读取配置状态…</span></div>
+          <div class="grid two" style="margin-top:12px">
+            <label class="field" for="bos-id"><span class="field-label">需求序号</span><input id="bos-id" type="text" inputmode="numeric" maxlength="200" autocomplete="off" placeholder="数字序号；有值时忽略高级筛选"></label>
+            <div class="field"><span class="field-label">覆盖保护</span><p class="field-help">查询和选择只显示结果，不会修改当前需求；确认后点“带入需求”。</p></div>
+          </div>
+          <details id="bos-advanced" style="margin-top:12px">
+            <summary>高级筛选：接受人、接受组、创建日期与标题</summary>
+            <div class="grid two" style="margin-top:12px">
+              <label class="field" for="bos-tuser"><span class="field-label">接受人</span><input id="bos-tuser" type="text" maxlength="500" autocomplete="off" placeholder="可输入中文姓名"></label>
+              <label class="field" for="bos-tgroup"><span class="field-label">接受组</span><input id="bos-tgroup" type="text" maxlength="500" autocomplete="off" placeholder="中文组名，精确匹配"></label>
+              <label class="field" for="bos-date"><span class="field-label">创建日期起</span><input id="bos-date" type="text" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="YYYY-MM-DD"></label>
+              <label class="field" for="bos-date2"><span class="field-label">创建日期止</span><input id="bos-date2" type="text" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="YYYY-MM-DD"></label>
+              <label class="field" for="bos-title"><span class="field-label">标题关键字</span><input id="bos-title" type="text" maxlength="500" autocomplete="off"></label>
+            </div>
+            <p class="field-help" style="margin-top:10px">非序号查询至少填写接受人或接受组。默认日期为 Asia/Hong_Kong 当日至次日；查询历史请先明确放宽日期范围。</p>
+          </details>
+          <div class="toolbar"><button id="bos-query" class="btn" type="button">查询 BOS</button><button id="bos-cancel" class="btn" type="button" hidden>取消等待</button><span class="hint">最多显示 20 条；取消等待不代表上游已中断。</span></div>
+          <p id="bos-query-status" class="status-line" role="status" aria-live="polite"></p>
+          <div id="bos-results" class="sources"></div>
+          <div class="toolbar"><button id="bos-apply" class="btn primary" type="button" disabled>带入需求</button><span class="hint">保留补充提示词及源码/附件清单；带入后原预览失效。</span></div>
+        </div>
+        <div class="toolbar"><span id="requirement-source" class="badge">手工填写</span><button id="switch-manual" class="btn small" type="button" hidden>切换为手工</button><span id="requirement-source-detail" class="hint">当前内容按手工需求保存。</span></div>
         <div class="grid two">
           <label class="field" for="requirement-id"><span class="field-label">需求编号</span><input id="requirement-id" type="text" autocomplete="off" placeholder="例如 BOS-123"></label>
           <label class="field" for="requirement-title"><span class="field-label">需求标题</span><input id="requirement-title" type="text" autocomplete="off"></label>
         </div>
         <div class="grid two" style="margin-top:14px">
-          <label class="field" for="requirement-url"><span class="field-label">需求链接</span><input id="requirement-url" type="text" autocomplete="off" placeholder="可选"></label>
+          <label class="field" for="requirement-url"><span class="field-label">需求链接</span><input id="requirement-url" type="text" autocomplete="off" placeholder="可选；BOS 未返回时留空"></label>
         </div>
         <label class="field" for="requirement-description" style="margin-top:14px"><span class="field-label">需求描述</span><textarea id="requirement-description" rows="3" spellcheck="false"></textarea></label>
         <label class="field" for="requirement-prompt" style="margin-top:14px"><span class="field-label">修改提示词 / 补充说明</span><textarea id="requirement-prompt" rows="5" spellcheck="false" placeholder="补充具体修改方式、约束、验收标准；按原文保存为修改说明.md"></textarea></label>

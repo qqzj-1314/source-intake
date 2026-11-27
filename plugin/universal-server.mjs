@@ -10,18 +10,25 @@ import { z } from 'zod';
 import { previewSchema, importSchema, buildRequest } from './contracts.mjs';
 import { PreviewCache } from './preview-cache.mjs';
 import { DEFAULT_ENGINE, detectPython, planRequest, applyPlan, readHistory, readRequirementContext, listRequirementPackages, appendRequirementHandoff } from './engine.mjs';
+import { bosQuerySchema, createBosClient } from './bos-client.mjs';
 
 const result = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value });
 const failure = error => ({ isError: true, content: [{ type: 'text', text: error.message || '操作失败' }] });
 const readonly = { readOnlyHint: true, destructiveHint: false, openWorldHint: false };
 
-export async function createUniversalServer({ python, engine, previewTtlMs, now } = {}) {
+export async function createUniversalServer({ python, engine, previewTtlMs, now, bos } = {}) {
+  const bosClient = bos || createBosClient();
   const executable = python || await detectPython();
   const enginePath = engine || process.env.SOURCE_INTAKE_ENGINE || DEFAULT_ENGINE;
   const { version } = JSON.parse(await readFile(new URL('../plugin/package.json', import.meta.url), 'utf8'));
   const server = new McpServer({ name: 'source_intake', version });
   const cache = new PreviewCache({ ttlMs: previewTtlMs, now });
-  const guard = fn => async args => { try { return result(await fn(args)); } catch (error) { return failure(error); } };
+  const close = server.close.bind(server);
+  server.close = async () => {
+    await close();
+    await bosClient.close();
+  };
+  const guard = fn => async (args, extra) => { try { return result(await fn(args, extra)); } catch (error) { return failure(error); } };
 
   server.registerTool('intake_status', {
     title: '源码需求导入健康检查', description: '检查本地运行时和内核。只读；通用MCP入口不依赖Codex、GUI、剪贴板或网络。',
@@ -34,6 +41,19 @@ export async function createUniversalServer({ python, engine, previewTtlMs, now 
       capabilities: ['plan', 'apply', 'history', 'requirement-context', 'requirement-index', 'work-handoff'],
       python: executable, engine: enginePath, ui_required: false, clipboard_access: false };
   }));
+
+  server.registerTool('intake_bos_status', {
+    title: '读取 BOS 配置与连接状态',
+    description: '只读显示服务端两个 BOS 环境变量是否均已配置，以及本连接是否已成功连接上游。configured 不代表已连接；本工具不会主动联网。',
+    inputSchema: z.object({}).strict(), annotations: readonly,
+  }, guard(async () => bosClient.status()));
+
+  server.registerTool('intake_bos_query', {
+    title: '只读查询 BOS 需求',
+    description: '按数字 id 精确查询，或提供至少一个按组/按人条件查询；id 有值时忽略其他业务筛选条件。explain 是自然中文日志元字段，缺省为“源码导入插件查询需求”。date/date2 均缺省时上游默认当日到次日，历史查询须明确放宽日期；支持中文姓名和组名，组名精确匹配。limit 仅限制返回记录数，body 为可选上游请求对象。返回受限记录，不推定业务字段映射。',
+    inputSchema: bosQuerySchema,
+    annotations: { ...readonly, openWorldHint: true },
+  }, guard((input, extra) => bosClient.query(input, { signal: extra?.signal })));
 
   server.registerTool('intake_plan', {
     title: '预览源码与需求材料导入',

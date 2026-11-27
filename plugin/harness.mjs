@@ -97,7 +97,45 @@ async function setupDemo(root) {
   };
 }
 
-export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '127.0.0.1', port = 0 } = {}) {
+function createSyntheticBosClient() {
+  let connected = false;
+  const record = {
+    '需求号': 1001,
+    '标题': '合成 BOS 需求 <script>alert("仅文本")</script>',
+    '描述': '仅用于本地验收的合成描述，不包含真实业务内容。',
+    '操作时间': '2026-01-02 03:04:05',
+    '创建时间': '2026-01-01 01:02:03',
+    '状态': '合成待处理',
+    '类型': '合成类型',
+    '来源': '合成来源',
+    '发起组': '合成发起组',
+    '发起人': '合成发起人',
+    '接受组': '合成接受组',
+    '接受人': '合成接受人',
+    '当前组': '合成当前组',
+    '当前人': '合成当前人',
+    '产品': '合成产品',
+    '产品名': '合成产品名',
+    '模块': '合成模块',
+    '附件': [],
+  };
+  return {
+    status() { return { configured: true, connected }; },
+    async query(args) {
+      if (!args.id && !args.tuser && !args.tgroup) throw new Error('BOS 查询必须提供 id，或至少一个按组或按人条件。');
+      let items = [record];
+      if (args.id && args.id !== String(record['需求号'])) items = [];
+      if (args.tuser && args.tuser !== record['接受人']) items = [];
+      if (args.tgroup && args.tgroup !== record['接受组']) items = [];
+      if (args.title && !record['标题'].includes(args.title)) items = [];
+      connected = true;
+      return { items, count: items.length, total: items.length, truncated: false };
+    },
+    async close() {},
+  };
+}
+
+export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '127.0.0.1', port = 0, bos } = {}) {
   const pythonPath = python || await detectPython();
   const root = await mkdtemp(join(tmpdir(), HARNESS_PREFIX));
   const settingsDir = join(root, 'settings');
@@ -109,14 +147,15 @@ export async function startHarness({ python, engine = DEFAULT_ENGINE, host = '12
     chooseFiles: async (initial, purpose) => ({ ok: true, canceled: false, paths: purpose === 'attachment' ? [demo.files.image, demo.files.document] : [demo.files.js, demo.files.css, demo.files.csp] }),
     screenshot: async () => ({ ok: true, png_base64: (await readFile(demo.files.image)).toString('base64') }),
   };
-  const mcp = await createServer({ python: pythonPath, engine, settingsDir, native, serverName: 'source_intake_harness' });
+  const mcp = await createServer({ python: pythonPath, engine, settingsDir, native, serverName: 'source_intake_harness', bos: bos || createSyntheticBosClient() });
   const client = new Client({ name: 'source-intake-harness', version: '0.1.0' });
   const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
   await mcp.connect(serverTransport);
   await client.connect(clientTransport);
 
   const allowedTools = new Set(['open_panel', 'panel_state', 'panel_choose_directory', 'panel_choose_files',
-    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot', 'panel_list_requirements', 'panel_add_image', 'panel_image_preview']);
+    'panel_clipboard', 'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot', 'panel_list_requirements', 'panel_add_image', 'panel_image_preview',
+    'panel_bos_status', 'panel_bos_query']);
   const screenshotPaths = new Set();
 
   async function restrictedCall(name, args) {

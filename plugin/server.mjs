@@ -14,6 +14,7 @@ import { DEFAULT_ENGINE, EngineError, applyPlan, detectPython, planRequest, list
 import { NativeError, createNativeBridge } from './native.mjs';
 import { PreviewCache, PreviewError } from './preview-cache.mjs';
 import { SettingsStore } from './settings.mjs';
+import { bosQuerySchema, createBosClient, normalizeBosRequirement } from './bos-client.mjs';
 
 export const PANEL_URI = 'ui://source-intake/panel/v1';
 export const mimeType = 'text/html;profile=mcp-app';
@@ -30,7 +31,7 @@ export async function panelHtml() {
 async function buildHtml() {
   const [html, bridge, panel] = await Promise.all(['panel.html', 'panel-bridge.js', 'panel.js']
     .map(name => readFile(new URL(name, import.meta.url), 'utf8')));
-  const script = `${bridge}\n${panel}`.replace(/<\/script/gi, '<\\/script');
+  const script = `${normalizeBosRequirement.toString()};\n${bridge}\n${panel}`.replace(/<\/script/gi, '<\\/script');
   return html
     .replace('<script src="/panel-bridge.js" defer></script>', '')
     .replace('<script src="/panel.js" defer></script>', `<script type="module">${script}</script>`);
@@ -47,8 +48,9 @@ function sanitizePaths(value, limit = 200) {
 }
 
 export async function createServer({
-  python, engine, settingsDir, native, previewTtlMs, now, randomId, serverName = 'source_intake',
+  python, engine, settingsDir, native, previewTtlMs, now, randomId, serverName = 'source_intake', bos,
 } = {}) {
+  const bosClient = bos || createBosClient();
   const pythonPath = python || await detectPython();
   const enginePath = engine || process.env.SOURCE_INTAKE_ENGINE || DEFAULT_ENGINE;
   const store = new SettingsStore(settingsDir ? { dir: settingsDir } : {});
@@ -86,9 +88,12 @@ export async function createServer({
   const close = server.close.bind(server);
   server.close = async () => {
     await close();
-    await cleanupScreenshots();
+    await Promise.all([cleanupScreenshots(), bosClient.close()]);
   };
-  server.server.onclose = () => { void cleanupScreenshots(); };
+  server.server.onclose = () => {
+    void cleanupScreenshots();
+    void bosClient.close();
+  };
 
   server.registerTool('panel_screenshot', {
     title: '收集剪贴板截图',
@@ -204,6 +209,28 @@ export async function createServer({
     _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
   }, async ({ root, query }) => {
     try { return result(await listRequirementPackages({ python: pythonPath, root, query, limit: 30 })); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('panel_bos_status', {
+    title: '读取 BOS 配置与连接状态',
+    description: '只读显示服务端两个 BOS 环境变量是否均已配置，以及本连接是否已成功连接上游。configured 不代表已连接；本工具不会主动联网。App-only。',
+    inputSchema: z.object({}).strict(),
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+    _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
+  }, async () => {
+    try { return result(bosClient.status()); }
+    catch (error) { return toolError(error); }
+  });
+
+  server.registerTool('panel_bos_query', {
+    title: '只读查询 BOS 需求',
+    description: '按数字 id 精确查询，或提供至少一个按组/按人条件查询；id 有值时忽略其他业务筛选条件。explain 是自然中文日志元字段，缺省为“源码导入插件查询需求”。date/date2 均缺省时上游默认当日到次日，历史查询须明确放宽日期；支持中文姓名和组名，组名精确匹配。limit 仅限制返回记录数，body 为可选上游请求对象。返回受限记录，不推定业务字段映射。App-only。',
+    inputSchema: bosQuerySchema,
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: true },
+    _meta: { ui: { resourceUri: PANEL_URI, visibility: ['app'] } },
+  }, async (input, extra) => {
+    try { return result(await bosClient.query(input, { signal: extra?.signal })); }
     catch (error) { return toolError(error); }
   });
 

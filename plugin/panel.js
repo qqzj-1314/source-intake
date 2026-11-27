@@ -20,7 +20,8 @@
   const state = {
     ready: false, busy: false, settings: null, defaults: { profile: 'hisui', routes: DEFAULT_ROUTES.hisui, cls_layout: 'package' },
     root: '', projectName: '', profile: 'hisui', routes: { ...DEFAULT_ROUTES.hisui }, clsLayout: 'package',
-    requirement: { id: '', title: '', description: '', url: '', prompt: '' },
+    requirement: { system: 'manual', id: '', title: '', description: '', url: '', prompt: '', updated_at: '' },
+    requirementOrigin: null, bosResults: [], bosSelected: -1, bosRevision: 0, bosBusy: false,
     sources: [], nextSourceId: 1, sessionId: randomId(), preview: null, previewBlocked: false, revision: 0,
   };
   const rowRefs = new Map();
@@ -115,6 +116,14 @@
     id: $('requirement-id'), title: $('requirement-title'),
     description: $('requirement-description'), url: $('requirement-url'), prompt: $('requirement-prompt'),
   };
+  const bosInputs = {
+    id: $('bos-id'), tuser: $('bos-tuser'), tgroup: $('bos-tgroup'),
+    date: $('bos-date'), date2: $('bos-date2'), title: $('bos-title'),
+  };
+  const bosQueryButton = $('bos-query');
+  const bosCancelButton = $('bos-cancel');
+  const bosApplyButton = $('bos-apply');
+  const bosResults = $('bos-results');
   const conflictSelect = $('conflict');
   const sourceList = $('source-list');
   const sourceEmpty = $('source-empty');
@@ -127,7 +136,7 @@
   const statusLine = $('status');
   const previewButton = $('preview');
   const importButton = $('import');
-  const buttons = ['choose-directory', 'collect-clipboard', 'choose-files', 'paste-code', 'add-paste', 'cancel-paste', 'preview', 'create-empty', 'choose-attachments', 'attachment-clipboard', 'capture-screenshot', 'search-requirements']
+  const buttons = ['choose-directory', 'collect-clipboard', 'choose-files', 'paste-code', 'add-paste', 'cancel-paste', 'preview', 'create-empty', 'choose-attachments', 'attachment-clipboard', 'capture-screenshot', 'search-requirements', 'switch-manual']
     .map(id => $(id));
 
   function setConnection(kind, text) {
@@ -145,11 +154,30 @@
     previewSummary.className = `summary${tone ? ` ${tone}` : ''}`;
   }
 
+  function setBosStatus(text, error = false) {
+    $('bos-query-status').textContent = text || '';
+    $('bos-query-status').className = `status-line${error ? ' error' : ''}`;
+  }
+
+  function renderRequirementOrigin(note = '') {
+    const origin = state.requirementOrigin;
+    $('requirement-source').textContent = origin ? `BOS · ${origin.id}` : '手工填写';
+    $('switch-manual').hidden = !origin;
+    $('requirement-source-detail').textContent = note || (origin
+      ? `来源：BOS 只读查询；操作时间：${state.requirement.updated_at}。`
+      : '当前内容按手工需求保存。');
+  }
+
   function updateControls() {
     const disabled = state.busy || !state.ready;
     for (const button of buttons) button.disabled = disabled;
     previewButton.disabled = disabled;
     importButton.disabled = disabled || !state.preview || state.previewBlocked;
+    bosQueryButton.disabled = disabled;
+    bosQueryButton.textContent = state.bosBusy ? '重新查询 BOS' : '查询 BOS';
+    bosCancelButton.hidden = !state.bosBusy;
+    bosCancelButton.disabled = !state.ready;
+    bosApplyButton.disabled = disabled || state.bosBusy || state.bosSelected < 0 || Boolean(state.bosResults[state.bosSelected]?.error);
   }
 
   function normalizeRoot(value) {
@@ -228,6 +256,148 @@
     }
     updateControls();
     if (hadPreview) setSummary(message || '配置已变化，请重新预览。', 'warn');
+  }
+
+  function hongKongDate(offsetDays = 0) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Hong_Kong', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date(Date.now() + offsetDays * 86_400_000));
+    const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+
+  async function refreshBosStatus() {
+    try {
+      const status = await hostCall('panel_bos_status');
+      if (!state.ready) return;
+      $('bos-connection').textContent = !status?.configured
+        ? 'BOS 未配置；可继续手工填写。'
+        : status.connected ? 'BOS 已连接；仅执行只读查询。' : 'BOS 已配置，尚未连接；首次查询才连接。';
+    } catch (error) {
+      if (state.ready) $('bos-connection').textContent = `BOS 状态读取失败：${error.message}；仍可手工填写。`;
+    }
+  }
+
+  function buildBosQuery() {
+    const id = bosInputs.id.value.trim();
+    if (id) {
+      if (!/^-?\d+$/.test(id)) throw new Error('BOS 需求序号必须为整数。');
+      return { id, limit: 20 };
+    }
+    const tuser = bosInputs.tuser.value.trim();
+    const tgroup = bosInputs.tgroup.value.trim();
+    if (!tuser && !tgroup) throw new Error('非序号查询至少填写接受人或接受组。');
+    const date = bosInputs.date.value.trim() || hongKongDate(0);
+    const date2 = bosInputs.date2.value.trim() || hongKongDate(1);
+    bosInputs.date.value = date;
+    bosInputs.date2.value = date2;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}-\d{2}-\d{2}$/.test(date2) || date > date2) {
+      throw new Error('请输入有效的 YYYY-MM-DD 日期范围，且开始日期不晚于截止日期。');
+    }
+    return { tuser, tgroup, title: bosInputs.title.value.trim(), date, date2, datetype: '创建时间', limit: 20 };
+  }
+
+  function renderBosResults(response) {
+    clear(bosResults);
+    const items = state.bosResults;
+    if (!items.length) {
+      bosResults.appendChild(el('p', 'hint', '查询成功，但没有匹配记录；当前需求未修改。'));
+      setBosStatus('BOS 查询完成：0 条。');
+      return;
+    }
+    let invalid = 0;
+    items.forEach((entry, index) => {
+      const record = entry.record;
+      const rawId = record?.['需求号'];
+      const id = (typeof rawId === 'number' || typeof rawId === 'string') && String(rawId).trim() ? String(rawId) : '缺少需求号';
+      const title = typeof record?.['标题'] === 'string' && record['标题'].trim() ? record['标题'] : '缺少标题';
+      const status = typeof record?.['状态'] === 'string' && record['状态'].trim() ? record['状态'] : '未提供状态';
+      const article = el('article', 'source-item');
+      const label = el('label', 'bos-result-select');
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'bos-result';
+      radio.value = String(index);
+      radio.disabled = Boolean(entry.error);
+      radio.setAttribute('aria-label', `选择 BOS 需求 ${id}`);
+      radio.addEventListener('change', () => {
+        state.bosSelected = index;
+        setBosStatus(`已选择需求 ${id}；尚未带入，当前需求和预览保持有效。`);
+        updateControls();
+      });
+      const content = el('div');
+      content.appendChild(el('div', 'bos-result-title', `${id} · ${title}`));
+      content.appendChild(el('p', 'source-notes', `状态：${status}`));
+      if (entry.error) {
+        invalid++;
+        content.appendChild(el('p', 'source-notes error', `无法带入：${entry.error}`));
+      }
+      label.append(radio, content);
+      article.appendChild(label);
+      bosResults.appendChild(article);
+    });
+    const total = typeof response.total === 'number' ? response.total : items.length;
+    const truncation = response.truncated ? ` 结果已截断（可能含超长字段），仅显示 ${items.length}/${total} 条，请缩小筛选范围。` : '';
+    setBosStatus(`BOS 查询完成：显示 ${items.length} 条。${truncation}${invalid ? ` ${invalid} 条缺少有效核心字段。` : ''} 请选择后显式带入。`, invalid > 0);
+  }
+
+  async function runBosQuery() {
+    if (state.busy || !state.ready) return;
+    let args;
+    try { args = buildBosQuery(); }
+    catch (error) { setBosStatus(error.message, true); return; }
+    const revision = ++state.bosRevision;
+    state.bosBusy = true;
+    state.bosResults = [];
+    state.bosSelected = -1;
+    clear(bosResults);
+    setBosStatus('正在查询 BOS…首次连接包含初始化与工具核对，面板最长等待 40 秒。');
+    updateControls();
+    try {
+      const response = await hostCall('panel_bos_query', args);
+      if (revision !== state.bosRevision || !state.ready) return;
+      if (!Array.isArray(response?.items)) throw new Error('BOS 返回缺少结果列表。');
+      state.bosResults = response.items.map(record => {
+        try { return { record, requirement: normalizeBosRequirement(record), error: '' }; }
+        catch (error) { return { record, requirement: null, error: error.message }; }
+      });
+      renderBosResults(response);
+      $('bos-connection').textContent = 'BOS 已连接；仅执行只读查询。';
+    } catch (error) {
+      if (revision !== state.bosRevision || !state.ready) return;
+      setBosStatus(error.code === 'ETIMEDOUT'
+        ? 'BOS 查询等待超时，已停止等待；服务端或上游查询可能仍在执行。当前需求未修改。'
+        : `BOS 查询失败：${error.message} 当前需求未修改。`, true);
+    } finally {
+      if (revision === state.bosRevision) {
+        state.bosBusy = false;
+        updateControls();
+      }
+    }
+  }
+
+  function cancelBosWait() {
+    if (!state.bosBusy) return;
+    state.bosRevision++;
+    state.bosBusy = false;
+    state.bosResults = [];
+    state.bosSelected = -1;
+    clear(bosResults);
+    setBosStatus('已取消等待并丢弃后续响应；仅停止本页面等待，未中断服务端或上游查询。当前需求未修改。');
+    updateControls();
+  }
+
+  function applySelectedBosRequirement() {
+    if (state.busy || state.bosBusy) return;
+    const entry = state.bosResults[state.bosSelected];
+    if (!entry) { setBosStatus('请先选择一条有效的 BOS 结果。', true); return; }
+    if (entry.error || !entry.requirement) { setBosStatus(entry.error || 'BOS 结果缺少核心字段。', true); return; }
+    state.requirement = { ...state.requirement, ...entry.requirement };
+    state.requirementOrigin = { system: 'BOS', id: entry.requirement.id };
+    for (const [name, input] of Object.entries(requirementInputs)) input.value = state.requirement[name] ?? '';
+    renderRequirementOrigin();
+    invalidatePreview('BOS 需求已带入，原预览已失效，请重新预览。');
+    setBosStatus(`已带入 BOS 需求 ${entry.requirement.id}；补充提示词和来源清单保持不变，请重新预览。`);
   }
 
   function sourceLabel(entry) {
@@ -620,9 +790,37 @@
   for (const [name, input] of Object.entries(requirementInputs)) {
     input.addEventListener('input', () => {
       state.requirement[name] = input.value;
+      if (name === 'id' && state.requirementOrigin && input.value.trim() !== state.requirementOrigin.id) {
+        state.requirementOrigin = null;
+        state.requirement.system = 'manual';
+        state.requirement.updated_at = '';
+        renderRequirementOrigin('需求编号已修改，已自动切换为手工；原 BOS 操作时间已清除。');
+      }
       invalidatePreview();
     });
   }
+  for (const input of Object.values(bosInputs)) {
+    input.addEventListener('input', () => {
+      state.bosRevision++;
+      state.bosBusy = false;
+      state.bosResults = [];
+      state.bosSelected = -1;
+      clear(bosResults);
+      setBosStatus('查询条件已变化，请重新查询；当前需求未修改。');
+      updateControls();
+    });
+  }
+  bosQueryButton.addEventListener('click', runBosQuery);
+  bosCancelButton.addEventListener('click', cancelBosWait);
+  bosApplyButton.addEventListener('click', applySelectedBosRequirement);
+  $('switch-manual').addEventListener('click', () => {
+    if (state.busy || !state.requirementOrigin) return;
+    state.requirementOrigin = null;
+    state.requirement.system = 'manual';
+    state.requirement.updated_at = '';
+    renderRequirementOrigin('已切换为手工；当前字段保留，原 BOS 操作时间已清除。');
+    invalidatePreview('需求来源已切换为手工，请重新预览。');
+  });
 
   $('choose-directory').addEventListener('click', async () => {
     if (state.busy) return;
@@ -829,12 +1027,17 @@
   async function main() {
     setConnection('', '连接中');
     setSummary('尚未预览。');
+    bosInputs.date.value = hongKongDate(0);
+    bosInputs.date2.value = hongKongDate(1);
+    renderRequirementOrigin();
     updateRouteInputs();
     updateControls();
     if (window.sourceIntakeHost?.onClose) {
       window.sourceIntakeHost.onClose(() => {
         setConnection('error', '已关闭');
         state.ready = false;
+        state.bosRevision++;
+        state.bosBusy = false;
         updateControls();
         setStatus('面板已关闭。', true);
       });
@@ -846,6 +1049,7 @@
       applyProjectRule(findProject(rootInput.value));
       updateControls();
       setConnection('online', '已连接');
+      void refreshBosStatus();
       const warnings = state.settings?.warnings || [];
       if (warnings.length) setStatus(warnings.join('；'));
       else setStatus('请选择项目目录并添加来源；预览不会写入文件。');

@@ -62,3 +62,47 @@ test('panel bridge negotiates MCP Apps 2026-01-26 and only trusts host messages'
   assert.doesNotMatch(bridgeSource, /navigator\.clipboard/);
   assert.doesNotMatch(bridgeSource, /localStorage/);
 });
+
+test('panel bridge gives BOS query 40s, keeps status fast and distinguishes timeout from closure', async () => {
+  const source = await readFile(new URL('../panel-bridge.js', import.meta.url), 'utf8');
+  const sent = [];
+  const timers = new Map();
+  let nextTimer = 1;
+  let receive;
+  const parent = { postMessage(message) { sent.push(message); } };
+  const window = {
+    parent,
+    addEventListener(name, callback) { if (name === 'message') receive = callback; },
+  };
+  const document = { documentElement: { style: {} } };
+  vm.runInNewContext(source, {
+    window, document,
+    setTimeout(callback, timeoutMs) { const id = nextTimer++; timers.set(id, { callback, timeoutMs }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+  });
+  const init = sent.find(message => message.method === 'ui/initialize');
+  receive({ source: parent, data: { jsonrpc: '2.0', id: init.id, result: { protocolVersion: '2026-01-26' } } });
+  await tick();
+
+  const status = window.sourceIntakeHost.call('panel_bos_status');
+  await tick();
+  const statusTimer = [...timers.values()].find(timer => timer.timeoutMs === 10000);
+  assert.ok(statusTimer);
+  statusTimer.callback();
+  await assert.rejects(status, error => error.code === 'ETIMEDOUT' && /可能仍在执行/.test(error.message));
+
+  const query = window.sourceIntakeHost.call('panel_bos_query', { id: '1001' });
+  await tick();
+  const queryCall = sent.filter(message => message.method === 'tools/call').at(-1);
+  assert.equal(queryCall.params.name, 'panel_bos_query');
+  const queryTimer = [...timers.values()].find(timer => timer.timeoutMs === 40000);
+  assert.ok(queryTimer);
+  queryTimer.callback();
+  await assert.rejects(query, error => error.code === 'ETIMEDOUT');
+  receive({ source: parent, data: { jsonrpc: '2.0', id: queryCall.id, result: { structuredContent: { count: 1 } } } });
+
+  const waiting = window.sourceIntakeHost.call('panel_preview');
+  await tick();
+  receive({ source: parent, data: { jsonrpc: '2.0', id: 999, method: 'ui/resource-teardown' } });
+  await assert.rejects(waiting, error => error.code === 'ECLOSED' && /已关闭/.test(error.message));
+});

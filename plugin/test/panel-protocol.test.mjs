@@ -6,7 +6,8 @@ import { PANEL_URI } from '../server.mjs';
 import { fixture, createNative, previewArgs, readJson, writeLegacySettings } from './helpers.mjs';
 
 const APP_ONLY = ['panel_state', 'panel_choose_directory', 'panel_choose_files', 'panel_clipboard',
-  'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot', 'panel_list_requirements', 'panel_add_image', 'panel_image_preview'];
+  'panel_preview', 'panel_import', 'panel_save_settings', 'panel_screenshot', 'panel_list_requirements', 'panel_add_image', 'panel_image_preview',
+  'panel_bos_status', 'panel_bos_query'];
 
 test('real MCP initialize/tools/resources expose the panel resource and app-only tools', async t => {
   const { client, call } = await fixture(t);
@@ -39,13 +40,16 @@ test('real MCP initialize/tools/resources expose the panel resource and app-only
   for (const id of ['root', 'choose-directory', 'recent-roots', 'requirement-id', 'requirement-title',
     'requirement-description', 'requirement-url', 'profile', 'route-csp', 'route-js', 'route-css', 'route-cls',
     'collect-clipboard', 'choose-files', 'paste-code', 'source-list', 'preview', 'import', 'conflict',
-    'preview-summary', 'result', 'status']) {
+    'preview-summary', 'result', 'status', 'bos-id', 'bos-tuser', 'bos-tgroup', 'bos-date', 'bos-date2', 'bos-title',
+    'bos-query', 'bos-cancel', 'bos-results', 'bos-apply', 'bos-query-status', 'bos-connection', 'requirement-source', 'switch-manual']) {
     assert.match(html, new RegExp(`id="${id}"`), id);
   }
   assert.match(html, /默认跳过/);
   assert.match(html, /备份后替换/);
   assert.match(html, /hisui/);
   assert.match(html, /flat/);
+  assert.match(html, /function normalizeBosRequirement/);
+  assert.match(html, /Asia\/Hong_Kong/);
   assert.doesNotMatch(html, /<script src="\/panel\.js"/);
   assert.doesNotMatch(html, /navigator\.clipboard/);
   assert.doesNotMatch(html, /localStorage/);

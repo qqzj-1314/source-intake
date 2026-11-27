@@ -1,6 +1,6 @@
 # 各编程智能体接入与验证
 
-核对日期：2026-11-26。这里的“支持”分为配置格式、真实协议和宿主实际调用三层。
+核对日期：2026-11-27。这里的“支持”分为配置格式、真实协议和宿主实际调用三层。
 安装后保留整个项目目录；换机器或移动目录后重新导出配置。
 
 ## 通用安装
@@ -15,11 +15,13 @@ node plugin/doctor-launch.mjs --config plugin/.local/clients/generic.json
 可用 `--python <解释器绝对路径>` 指定 Python，`--output <目录>` 改输出目录。生成器只写导出文件，保留原客户端配置；目标文件内容不同则拒绝覆盖，显式 `--force` 才备份后重写。
 0.5.0 起完整包自带编译后的通用运行时和依赖许可文本。没有开发用 node_modules 也能导出配置、运行 doctor 和启动通用 MCP；Node/Python 仍是前提。修改源码或依赖锁后需要重新构建，不能把陈旧 bin 当作最新实现。升级旧版本后应重新导出使用 launch.mjs 的配置。
 
-同一服务器提供 `intake_status`、`intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`、`intake_append_handoff`，以及 `implement_requirement` 提示词。
+同一服务器提供 `intake_status`、`intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`、`intake_append_handoff`、可选的 `intake_bos_status` / `intake_bos_query`，以及 `implement_requirement` 提示词。
 智能体先预览，使用同一 MCP 连接返回的 preview_id 执行；令牌过期、使用过或来源变更后需要重新预览。
 已经有用户导入授权时可直接完成流程，无需人为增加重复确认。替换原文件须有对应用户授权。
 
 0.6.0 的 context.schema_version=2，原有材料字段保留，新增 handoff。先读取上下文取得材料指纹，再显式追加工作记录；独立文件不会覆盖原始提示词。工作记录为执行者自报，状态不等于用户验收；材料指纹不覆盖项目源码。用法及文件系统限制见 [交接说明](../skill/source-intake/references/handoff.md)。
+
+0.8 的 BOS 查询是可选远端只读能力，两个凭据只从 MCP 服务器环境的 `IMEDWAY_GATEWAY_KEY`、`IMEDWAY_BOS_TOKEN` 读取。部署方须自行获得服务与数据授权；未配置时无需修改本地导入流程，也不会在启动时联网。工具注册和合成协议测试不替代各宿主的真实模型调用验证，仍以下表为准。
 
 0.6 的 Qoder 原生交接、无依赖解压安装、Skill-only CLI 和四组 CI 结果见 [0.6 验收记录](verification-0.6.md)。
 
@@ -51,6 +53,7 @@ Claude 原生插件通过同一已编译入口启动。本项目采用 MIT 许�
 - 通用入口不会读取剪贴板或弹选择器。截图/文档以文件路径作为 attachment 传入；复制文本通过 text 传入。
 - 截图读取的原生便捷入口仍属于 Windows 面板。所有宿主都可读取已保存图片。
 - 0.7 面板增加粘贴代码原文预览、图片预览及输入区 paste 图片事件处理。直接粘贴依赖宿主将该事件及图片数据交给面板；通用 CLI/MCP 继续接收图片文件路径，不拦截编辑器的全局粘贴快捷键。PNG/JPEG/GIF/WebP/BMP 可预览，单张上限 20 MiB；普通文档展示文件名和路径。
+- 0.8 的 Codex 面板可只读查询 BOS，并通过显式“带入需求”更新字段；查询或选择本身不覆盖手工内容。通用宿主使用标准 `intake_bos_*` 工具，不承载 Codex 面板 UI。日期默认按 Asia/Hong_Kong 当日至次日显示，历史查询须明确修改范围。
 - 文件和需求目录是共享交接格式，preview_id 只在当前服务实例有效，不能跨智能体传递；跨工具接续时读取已生成目录或重新预览。
 - 文档/图片实际内容由智能体自身的图片/文档工具读取，intake_context 不把文件名或清单当作已读正文。
 - 0.4.0 的实际 CI 已在 Windows、Linux、macOS 上通过内核、Tk 测试与通用 MCP 流程（Python 3.11 / Node 22）。每个平台有 2 项仅开发机具备样例的集成测试明确跳过。该证据不等于所有操作系统上的每种 IDE 界面都已验证，详见 [0.4 验收记录](verification-0.4.md)。

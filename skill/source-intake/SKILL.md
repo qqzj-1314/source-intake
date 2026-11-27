@@ -17,11 +17,13 @@ metadata:
 
 以下命令中的 `<skill>` 指当前 `SKILL.md` 所在目录；从任意工作目录执行，不要求先切换到 Skill 文件夹。
 
-- 支持通用 MCP 的宿主：使用当前宿主提供的 `intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`（工具可能有服务名前缀）。先预览，再以同一连接返回的 preview_id 导入；仅附件或空白需求包可传 sources=[]。需求工作包 work_package 默认开启，supplemental instructions 写入 requirement.prompt。
+- 支持通用 MCP 的宿主：使用当前宿主提供的 `intake_plan`、`intake_apply`、`intake_history`、`intake_context`、`intake_list_requirements`（工具可能有服务名前缀）。先预览，再以同一连接返回的 preview_id 导入；仅附件或空白需求包可传 sources=[]。需求工作包 work_package 默认开启，supplemental instructions 写入 requirement.prompt。已授权部署还可提供只读 `intake_bos_status` / `intake_bos_query`。
 - Codex 人工交互：可打开 [源码导入插件](plugin://source-intake@source-intake-local) 或调用 `open_panel`。用户在面板内先预览再导入；其他宿主不依赖此入口。
 - 程序化导入：构造请求 JSON，用 `"<skill>/scripts/source_intake.py"` 的 `plan`/`apply`。不要让 GUI 阻塞自动化流程。
 
 脚本只需 Python 3.10+ 标准库；不要安装依赖，也不要启动后台剪贴板监听。
+
+BOS 查询只使用部署方已在服务器环境配置的 `IMEDWAY_GATEWAY_KEY` / `IMEDWAY_BOS_TOKEN`，不要向用户索取或转述密钥。按数字 id 精确查；非 id 查询至少提供一个组/人条件，历史查询须明确日期范围。查询结果不自动等于用户选择：只有用户明确选用的记录才作为 `system: "BOS"` 导入，需求号转为字符串，标题/描述/操作时间按已确认的中文字段读取，URL 未提供则留空。核心字段缺失时报告错误，不编造映射。纯 Python Skill 不自行实现网络查询；无该 MCP 或查询失败时保留手工流程。
 
 ## 程序化导入流程
 
